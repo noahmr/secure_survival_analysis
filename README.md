@@ -10,7 +10,7 @@ This repository provides an implementation of the survival analysis models using
 
 ## <div align="center">Features</div>
 
-- Proportional hazards model, based on Efron's log-likelihood
+- Proportional hazards model, based on Efron's method
 - Harrell's Concordance index
 - Secure fixed-point exponentiation
 - Secure fixed-point logarithm
