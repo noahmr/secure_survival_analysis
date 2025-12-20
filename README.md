@@ -32,4 +32,4 @@ This implementation was developed as part of the master's thesis:
 
 Copyright (c) 2025, Noah van der Meer
 
-This software is licenced under the MIT license, which can be found in [LICENCE.md](LICENCE). By using, distributing, or contributing to this project, you agree to the terms and conditions of this license.
+This software is licenced under the MIT license, which can be found in [LICENSE](LICENSE). By using, distributing, or contributing to this project, you agree to the terms and conditions of this license.
