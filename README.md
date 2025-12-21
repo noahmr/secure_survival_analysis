@@ -28,9 +28,16 @@ This repository provides an implementation of the survival analysis models using
 - [MPyC](https://github.com/lschoe/mpyc)
 - [gmpy2](https://pypi.org/project/gmpy2/)
 - [Numpy](https://pypi.org/project/numpy/)
-- [SciPy](https://pypi.org/project/scipy/) (Optional, for statistical tests)
-- [Pandas](https://pypi.org/project/pandas/) (Optional, for demos)
+
   
+</details>
+
+<details open>
+<summary>Optional dependencies</summary>
+ 
+- [SciPy](https://pypi.org/project/scipy/) (for statistical tests)
+- [Pandas](https://pypi.org/project/pandas/) (for demos)
+
 </details>
 
 
