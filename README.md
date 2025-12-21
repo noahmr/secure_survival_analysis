@@ -1,6 +1,6 @@
 # Secure Survival Analysis
 
-This repository provides an implementation of several survival analysis tools using multiparty computation, based on the [MPyC](https://github.com/lschoe/mpyc) library. This includes the proportional hazards model and the concordance index, along with all supporting operations such as secure optimization, logarithms and secure versions of the BFGS and L-BFGS quasi-newton optimization methods.
+This package provides an implementation of several survival analysis tools using multiparty computation, based on the [MPyC](https://github.com/lschoe/mpyc) library. This includes the proportional hazards model and the concordance index, along with all supporting operations such as secure optimization, logarithms and secure versions of the BFGS and L-BFGS quasi-newton optimization methods.
 
 <div align="center">
 
@@ -21,6 +21,13 @@ This repository provides an implementation of several survival analysis tools us
 
 
 ## <div align="center">Install</div>
+
+The package can be installed through pip using the following command:
+```bash
+pip3 install .
+```
+
+This should automatically install the mandatory dependencies.
 
 <details open>
 <summary>Dependencies</summary>
