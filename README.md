@@ -48,13 +48,64 @@ This should automatically install the mandatory dependencies.
 </details>
 
 
+## <div align="center">Demos</div>
+
+There are several example scripts located within the [demos](demos) directory. This directory also includes an example dataset of 10.000 records, which was synthetically generated for testing purposes.
+
+<details open>
+<summary>Proportional hazards model</summary>
+ 
+To fit the proportional hazards model on the first 100 records with 3 parties:
+
+```bash
+python3 test_model.py -M3 100
+```
+  
+</details>
+
+<details>
+<summary>Concordance index</summary>
+ 
+To compute the concordance index on the first 100 records with 3 parties:
+
+```bash
+python3 test_concordance.py -M3 100
+```
+  
+</details>
+
+<details>
+<summary>Secure fixed-point exponentiation</summary>
+
+Generate 100 random fixed-point exponents, and evaluate the exponential function on these with 3 parties:
+
+```bash
+python3 test_np_pow.py -M3 100 32
+```
+This uses a fixed-point bit-length of 32 bits.
+  
+</details>
+
+<details>
+<summary>Secure fixed-point logarithm</summary>
+
+Generate 100 random fixed-point inputs, and compute the logarithms of these with 3 parties:
+
+```bash
+python3 test_np_logarithm.py -M3 100 32
+```
+This uses a fixed-point bit-length of 32 bits.
+  
+</details>
+
+
 ## <div align="center">About</div>
 
 This implementation was developed as part of the master's thesis:
 
 <em>Van der Meer, Noah. "Privacy-Preserving Survival Analysis" Master Thesis, Eindhoven University of Technology (2025).</em>
 
-
+which was done under the supervision of Berry Schoenmakers.
 
 ## <div align="center">License</div>
 
