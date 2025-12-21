@@ -1,0 +1,8 @@
+[build-system]
+requires = [
+    "setuptools>=42",
+    "mpyc>=0.10",
+    "numpy>=2.3",
+    "gmpy2>=2.2.1"
+]
+build-backend = "setuptools.build_meta"
