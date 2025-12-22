@@ -1,6 +1,6 @@
 # Secure Survival Analysis
 
-This package provides an implementation of several survival analysis tools using multiparty computation, based on the [MPyC](https://github.com/lschoe/mpyc) library. This includes the proportional hazards model and the concordance index, along with all supporting operations such as secure optimization, logarithms and secure versions of the BFGS and L-BFGS quasi-newton optimization methods.
+This package provides an implementation of several survival analysis tools using multiparty computation, based on the [MPyC](https://github.com/lschoe/mpyc) library. This includes the proportional hazards model and the concordance index, along with supporting operations such as secure exponentiation, logarithms, and secure versions of the BFGS and L-BFGS quasi-newton optimization methods.
 
 <div align="center">
 
