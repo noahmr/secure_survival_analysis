@@ -102,25 +102,12 @@ async def gradient_descent(f, f_grad, beta0, alpha, num_iterations, tolerance=0.
     return beta, likelihoods
 
 
-def update_inverse_hessian(H, s, y, rho):
-
-    d = len(s)
-    I = np.eye(d) # identity matrix
-
-    # TODO: use mpc.np_outer()
-
-    # (I - rho_k s_k y_k^T)
-    A = I -  rho * mpc.np_matmul(s[:, np.newaxis], y[np.newaxis, :])
-
-    # (I - rho_k y_k s_k^T)
-    B = I -  rho * mpc.np_matmul(y[:, np.newaxis], s[np.newaxis, :])
-
-    # (rho_k s_k s_k^T)
-    C = rho * mpc.np_matmul(s[:, np.newaxis], s[np.newaxis, :])
-
-    # Result
-    H_next = mpc.np_matmul(mpc.np_matmul(A, H), B) + C
-    return H_next
+def update_inverse_hessian(H, s, y):
+    rho = 1 / y @ s
+    r = rho * s
+    A = np.eye(len(s)) - np.outer(r, y)  # I - rho_k s_k y_k^T
+    C = np.outer(r, s)  # (rho_k s_k s_k^T)
+    return A @ H @ A.T + C
 
 
 async def bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005):
@@ -182,7 +169,6 @@ async def bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005):
         if i > 0:
             s_i = beta - beta_prev
             y_i = grad - grad_prev
-            rho_i = 1 / mpc.np_matmul(y_i, s_i)
 
         # First iteration is simply gradient descent; We only have the gradient
         # at one point, no info about curvature yet.
@@ -203,7 +189,7 @@ async def bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005):
             if H is None:
                 gamma = mpc.np_matmul(y_i, s_i) / mpc.np_matmul(y_i, y_i)
                 H = gamma * secarray(np.eye(len(beta)))
-            H = update_inverse_hessian(H, s_i, y_i, rho_i)
+            H = update_inverse_hessian(H, s_i, y_i)
 
             w = mpc.np_matmul(H, grad)
 
@@ -340,6 +326,7 @@ async def lbfgs(f, f_grad, beta0, alpha, num_iterations, m, tolerance=0.005):
 
         logging.info(f"lbfgs(): starting iteration {i}")
         grad = f_grad(beta)
+        logging.info(f"lbfgs(): end grad starting iteration {i}")
 
         # Bookkeeping
         w = None
