@@ -28,8 +28,8 @@ IN THE SOFTWARE.
 
 """
 
-## Imports
 from mpyc.runtime import mpc
+
 
 class ordered_row:
     """
@@ -46,7 +46,7 @@ class ordered_row:
         #   -1 if self.row > rhs.row
         #   0 if equal
         #   1 if self.row < rhs.row
-        sgns = mpc.np_sgn(rhs.row - self.row, l = self.bitlength)
+        sgns = mpc.np_sgn(rhs.row - self.row, l=self.bitlength)
         squares = (sgns**2)
 
         # by construction guaranteed to be either 0 or 2, thus divisible by 2
@@ -57,6 +57,7 @@ class ordered_row:
         for j in range(n - 2, -1, -1):
             r = z[j] + (1 - squares[j]) * r
         return r
+
 
 def create_ordering(indices, bitlength):
     """
@@ -74,7 +75,7 @@ def create_ordering(indices, bitlength):
     ordering type
     """
 
-    assert type(indices) == list
+    assert type(indices) is list
 
     tp = type(f"ordered_row()", (ordered_row,), dict())
     tp.indices = indices

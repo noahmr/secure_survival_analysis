@@ -28,22 +28,16 @@ IN THE SOFTWARE.
 
 """
 
-# MPyC
-from mpyc.runtime import mpc
-
-# Python
 import time
 import logging
-
-# Numpy
 import numpy as np
-
-# This repository
+from mpyc.runtime import mpc
 from secure_survival_analysis import ph_log_likelihood
 from secure_survival_analysis.aggregation import group_values, _group_sum
 from secure_survival_analysis.optimize import gradient_descent, bfgs, lbfgs
 
-async def fit_proportional_hazards_model(table, method = 'l-bfgs', alpha = 1, num_iterations = 10, tolerance=0.005):
+
+async def fit_proportional_hazards_model(table, method='l-bfgs', alpha=1, num_iterations=10, tolerance=0.005):
     """Fit the proportional hazards model
 
     Parameters
@@ -73,10 +67,10 @@ async def fit_proportional_hazards_model(table, method = 'l-bfgs', alpha = 1, nu
     X_sorted, grouping = group_values(table, group_column=0, sort_column=0)
 
     # Separate the status
-    delta_sorted = X_sorted[:,1]
+    delta_sorted = X_sorted[:, 1]
 
     # Drop the times and status; this isolates the covariates
-    X_sorted = X_sorted[:,2:]
+    X_sorted = X_sorted[:, 2:]
 
     await mpc.barrier(f"sorting & grouping on survival time")
     logging.info("finished sorting & grouping on survival time")
@@ -94,7 +88,7 @@ async def fit_proportional_hazards_model(table, method = 'l-bfgs', alpha = 1, nu
 
     # Define gradient of log-likelihood function
     def f_grad(b):
-         return ph_log_likelihood.negative_log_likelihood_gradient(b, X_sorted, delta_sorted, grouping, ld)
+        return ph_log_likelihood.negative_log_likelihood_gradient(b, X_sorted, delta_sorted, grouping, ld)
 
     num_features = len(X_sorted[0])
     beta0 = ttype(np.array([np.float64(0)] * num_features))
@@ -107,7 +101,7 @@ async def fit_proportional_hazards_model(table, method = 'l-bfgs', alpha = 1, nu
     elif method == 'bfgs':
         beta, likelihoods_, H = await bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=tolerance)
     elif method == 'l-bfgs':
-        beta, likelihoods_ = await lbfgs(f, f_grad, beta0, alpha, num_iterations, m = 7, tolerance=tolerance)
+        beta, likelihoods_ = await lbfgs(f, f_grad, beta0, alpha, num_iterations, m=7, tolerance=tolerance)
     else:
         raise ValueError("invalid method specified")
 

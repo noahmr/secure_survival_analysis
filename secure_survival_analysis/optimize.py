@@ -28,10 +28,10 @@ IN THE SOFTWARE.
 
 """
 
-## Imports
-from mpyc.runtime import mpc
-import numpy as np
 import logging
+import numpy as np
+from mpyc.runtime import mpc
+
 
 async def gradient_descent(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005):
     """Use gradient descent to minimize the objective function
@@ -66,7 +66,7 @@ async def gradient_descent(f, f_grad, beta0, alpha, num_iterations, tolerance=0.
     grad_norm = secfxp(1)  # initialize to 1 with the correct type
 
     # List of function values for each iteration, for analysis purposes
-    #likelihoods = [f(beta)]
+    # likelihoods = [f(beta)]
 
     for i in range(0, num_iterations):
 
@@ -85,11 +85,10 @@ async def gradient_descent(f, f_grad, beta0, alpha, num_iterations, tolerance=0.
         # Update estimate through gradient descent step
         beta = beta - alpha * grad
 
-        #ll = f(beta)
-        #likelihoods.append(ll)
+        # ll = f(beta)
+        # likelihoods.append(ll)
 
         await mpc.barrier(f"iteration {i}")
-
 
     logging.info("gradient_descent() finished")
 
@@ -151,7 +150,7 @@ async def bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005):
     H = None
 
     # List of function values for each iteration, for analysis purposes
-    #likelihoods = [f(beta)]
+    # likelihoods = [f(beta)]
 
     for i in range(0, num_iterations):
 
@@ -193,7 +192,6 @@ async def bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005):
 
             w = mpc.np_matmul(H, grad)
 
-
         w_norm = mpc.statistics._fsqrt(mpc.np_matmul(w, w))
 
         # Bookkeeping
@@ -203,11 +201,10 @@ async def bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005):
         # Update beta with l-bfgs step
         beta = beta - alpha * w
 
-        #ll = f(beta)
-        #likelihoods.append(ll)
+        # ll = f(beta)
+        # likelihoods.append(ll)
 
         await mpc.barrier(f"iteration {i}")
-
 
     logging.info("bfgs() finished")
 
@@ -270,6 +267,7 @@ def two_loop_recursion(s, y, rho, grad):
 
     return w
 
+
 async def lbfgs(f, f_grad, beta0, alpha, num_iterations, m, tolerance=0.005):
     """Minimize the objective function f (with gradient f_grad) through the l-bfgs method
 
@@ -314,7 +312,7 @@ async def lbfgs(f, f_grad, beta0, alpha, num_iterations, m, tolerance=0.005):
     w_norm = secfxp(1)  # initialize to 1 with the correct type
 
     # List of function values for each iteration, for analysis purposes
-    #likelihoods = [f(beta)]
+    # likelihoods = [f(beta)]
 
     for i in range(0, num_iterations):
 
@@ -370,11 +368,10 @@ async def lbfgs(f, f_grad, beta0, alpha, num_iterations, m, tolerance=0.005):
         # Update beta with l-bfgs step
         beta = beta - alpha * w
 
-        #ll = f(beta)
-        #likelihoods.append(ll)
+        # ll = f(beta)
+        # likelihoods.append(ll)
 
         await mpc.barrier(f"iteration {i}")
-
 
     logging.info("lbfgs() finished")
 

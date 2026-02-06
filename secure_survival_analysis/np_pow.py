@@ -28,19 +28,13 @@ IN THE SOFTWARE.
 
 """
 
-
-# MPyC imports
-from mpyc.runtime import mpc
-from mpyc.asyncoro import mpc_coro
-import gmpy2
-
-# Numpy
-import numpy as np
-
-# Python imports
 import math
 import secrets
 import functools
+import gmpy2
+import numpy as np
+from mpyc.runtime import mpc
+
 
 # Cache the result to avoid re-computing it every time, since the fixed point
 # bitlength typically stays the same in any case.
@@ -79,6 +73,7 @@ def pow_taylor_degree(b, f):
 
     return k
 
+
 def np_pow_taylor(b, e):
     """Approximate b^e using a Taylor approximation, for public integer base b
     and secret-shared fixed point exponents e which are close to zero
@@ -115,7 +110,8 @@ def np_pow_taylor(b, e):
     z = 1 + mpc.np_matmul(y_powers, coeff)
     return z
 
-@mpc_coro
+
+@mpc.coroutine
 async def np_pow_integer_exponent(b, e):
     """Compute b^e, for public integer base b and secret-shared integer exponents e
 
@@ -156,7 +152,6 @@ async def np_pow_integer_exponent(b, e):
     k = e.sectype.bit_length
     assert (modulus // num_parties) > (2**(k + sec_param))
 
-
     ### Step 1: generate the random pair [r], [b^{-r}]
 
     # Let each party locally generate a random number r_i
@@ -175,22 +170,21 @@ async def np_pow_integer_exponent(b, e):
     b_pow_r_inverse_factors = mpc.np_stack(mpc.input(ttype(b_pow_r_i_inverse)), axis=0)
     b_pow_r_inverse = mpc.np_prod(b_pow_r_inverse_factors, axis=0)
 
-
     ### Step 2: open e + r to all parties, and compute b^{e + r} locally
     e_plus_r_ = await mpc.output(e + r)
-    e_plus_r = (e_plus_r_ % modulus) # ensure (e_plus_r_ > 0)
+    e_plus_r = (e_plus_r_ % modulus)  # ensure (e_plus_r_ > 0)
 
     b_pow_e_r_ = gmpy2.powmod_exp_list(b, e_plus_r, modulus)
     b_pow_e_r = np.vectorize(int, otypes='O')(b_pow_e_r_)
-
 
     ### Step 3: extract the result b^e by multiplying with [b^{-r}]
     b_pow_e = b_pow_e_r * b_pow_r_inverse
 
     return b_pow_e
 
-@mpc_coro
-async def np_pow_integer_base(b, e, e_lower_bound):#
+
+@mpc.coroutine
+async def np_pow_integer_base(b, e, e_lower_bound):
     """Compute b^e, for public integer base b and secret-shared fixed point exponents e
 
     Parameters
@@ -256,7 +250,8 @@ async def np_pow_integer_base(b, e, e_lower_bound):#
 
     return e_pow
 
-@mpc_coro
+
+@mpc.coroutine
 async def np_pow(b, e, e_lower_bound):
     """Compute b^e, for public base b and secret-shared fixed point exponents e
 

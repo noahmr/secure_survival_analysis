@@ -2,19 +2,19 @@
 Author: Noah van der Meer
 Description: Demo for computing the logarithm of secret fixed-point numbers
 
-    
+
 License: MIT License
 
 Copyright (c) 2025, Noah van der Meer
- 
+
 Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to 
+of this software and associated documentation files (the "Software"), to
 deal in the Software without restriction, including without limitation the
-rights to use, copy, modify, merge, publish, distribute, sublicense, and/or 
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
 sell copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in 
+The above copyright notice and this permission notice shall be included in
 all copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -27,20 +27,13 @@ IN THE SOFTWARE.
 
 """
 
-# MPyC
-from mpyc.runtime import mpc
-
-# Numpy
-import numpy as np
-np.set_printoptions(suppress=True)
-
-# Python
-import time
 import sys
+import time
 import logging
-
-# This repository
+import numpy as np
+from mpyc.runtime import mpc
 from secure_survival_analysis import np_logarithm
+
 
 async def main():
 
@@ -60,7 +53,6 @@ async def main():
     secfxp = mpc.SecFxp(bitlength, bitlength // 2)
 
     logging.info(f"Computing logarithm for {num_values} random values")
-
 
     await mpc.start()
 

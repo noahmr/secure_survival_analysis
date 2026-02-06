@@ -28,16 +28,13 @@ IN THE SOFTWARE.
 
 """
 
-# MPyC imports
+import math
+import functools
+import logging
+import numpy as np
 from mpyc.runtime import mpc
 import mpyc.mpctools
 
-# Numpy
-import numpy as np
-
-# Python imports
-import math
-import functools
 
 # Cache the result to avoid re-computing it every time, since the fixed point
 # bitlength typically stays the same in any case.
@@ -67,6 +64,7 @@ def log_taylor_degree(f):
         k = k + 1
     return k
 
+
 def np_log_taylor(c):
     """Approximate the logarithm of secret fixed point numbers (within [0.5, 1))
 
@@ -95,7 +93,7 @@ def np_log_taylor(c):
     # Taylor polynomial coefficients (public)
     rng = np.arange(1, theta + 1)
     coeff = (1 / (rng * (a**rng))) * (-1)**(rng + 1)
-    constant_term = math.log(a) # constant term
+    constant_term = math.log(a)  # constant term
 
     # Inner product between powers of y and the coefficients to evaluate the polynomial.
     z = constant_term + mpc.np_matmul(y_powers, coeff)
@@ -126,11 +124,11 @@ def np_log2(x):
     # Prefix-OR of the bits
     or_op = lambda v1, v2: v1 + v2 - v1 * v2
     y_ = mpc.np_vstack(list(mpyc.mpctools.accumulate(mpc.np_rot90(b, k=1), or_op)))
-    y = mpc.np_rot90(y_, k=3) # rotate back; and reverse order for each input
+    y = mpc.np_rot90(y_, k=3)  # rotate back; and reverse order for each input
 
     # Detect the first transition; which represents the bit length for each input number
     z_ = y[:, :-1] - y[:, 1:]
-    z = mpc.np_concatenate((z_, y[:, -1:]), axis=1) # append the last element of y
+    z = mpc.np_concatenate((z_, y[:, -1:]), axis=1)  # append the last element of y
 
     # Normalization factors
     indices = k - 1 - np.arange(k)
@@ -138,11 +136,9 @@ def np_log2(x):
     v = mpc.np_matmul(z, factors) / (2**f)
     c = x * v
 
-
     ### Step 2: taylor approximation
     log_c = np_log_taylor(c)
     log2_c = log_c / math.log(2)
-
 
     ### Step 3: extract result
     l = mpc.np_matmul(z, indices)

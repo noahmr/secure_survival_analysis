@@ -29,16 +29,12 @@ IN THE SOFTWARE.
 
 """
 
-# MPyC
-from mpyc.runtime import mpc
-
-# Numpy
 import numpy as np
-
-# This repository
+from mpyc.runtime import mpc
 from secure_survival_analysis.aggregation import group_propagate_right, group_sum
 from secure_survival_analysis import np_logarithm
 from secure_survival_analysis import np_pow
+
 
 def negative_log_likelihood(beta, X, delta, grouping, ld):
     """Compute the negative log-likelihood function for the Proportional Hazards Model
@@ -95,7 +91,7 @@ def negative_log_likelihood(beta, X, delta, grouping, ld):
 
 
 def negative_log_likelihood_gradient(beta, X, delta, grouping, ld):
-    """Compute the gradient of the negative log-likelihood function for the Proportional Hazards Model
+    """Compute gradient of the negative log-likelihood function for the Proportional Hazards Model
 
     It is assumed that the samples are already sorted on survival times.
 

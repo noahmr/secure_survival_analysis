@@ -28,11 +28,10 @@ IN THE SOFTWARE.
 
 """
 
-## Imports
-from mpyc import mpctools
-from mpyc.runtime import mpc
-import numpy as np
 import operator
+import numpy as np
+from mpyc.runtime import mpc
+from mpyc import mpctools
 
 
 def mark_differences(values):
@@ -67,6 +66,7 @@ def mark_differences(values):
 
     return b
 
+
 def group_values(table, sort_column, group_column):
     """
     Sort and create the grouping indexing array for a list of secret shared values
@@ -88,10 +88,11 @@ def group_values(table, sort_column, group_column):
     # Sort according to desired column
     w = table
     if sort_column >= 0:
-        w = mpc.np_sort(w, axis=0, key = lambda v: v[sort_column])
+        w = mpc.np_sort(w, axis=0, key=lambda v: v[sort_column])
 
     b = mark_differences(w[:, group_column])
     return w, b
+
 
 def selective_operator(op):
     """
@@ -119,6 +120,7 @@ def selective_operator(op):
         return t2[-1] * (t2 - o) + o
 
     return f
+
 
 def selective_sum(values, grouping):
     """
@@ -187,7 +189,7 @@ def group_propagate(values, grouping):
     # Ensure grouping array can be multiplied row-wise with values
     if values.ndim == 2:
         grouping_reshaped = grouping_shifted[:, np.newaxis]
-    else: # values.ndim == 1
+    else:  # values.ndim == 1
         grouping_reshaped = grouping_shifted
     # TODO: can this be done in a cleaner way?
 
@@ -196,7 +198,8 @@ def group_propagate(values, grouping):
 
     # Selective sum to propagate last value of each group to the rest of the group
     r = selective_sum(mpc.np_flip(u, axis=0), mpc.np_flip(grouping_shifted, axis=0))
-    return mpc.np_flip(r, axis=0) # Flip the results again
+    return mpc.np_flip(r, axis=0)  # Flip the results again
+
 
 def group_propagate_right(values, grouping):
     """
@@ -222,7 +225,7 @@ def group_propagate_right(values, grouping):
     # Ensure grouping array can be multiplied row-wise with values
     if values.ndim == 2:
         grouping_reshaped = grouping[:, np.newaxis]
-    else: # values.ndim == 1
+    else:  # values.ndim == 1
         grouping_reshaped = grouping
     # TODO: can this be done in a cleaner way?
 
@@ -232,6 +235,7 @@ def group_propagate_right(values, grouping):
     # Selective sum to propagate first value in each group to the rest of the group
     r = selective_sum(u, grouping)
     return r
+
 
 def _group_sum(values, grouping):
     assert (len(values) == len(grouping))
@@ -243,6 +247,7 @@ def _group_sum(values, grouping):
     r = group_propagate(u, grouping)
 
     return r, u
+
 
 def group_sum(values, grouping):
     """
@@ -264,6 +269,7 @@ def group_sum(values, grouping):
     r, _ = _group_sum(values, grouping)
     return r
 
+
 class comparable_bit:
     """
     Class which defines an efficient comparison on secret-shared bits
@@ -274,6 +280,7 @@ class comparable_bit:
 
     def __lt__(self, rhs):
         return self.bit - self.bit * rhs.bit
+
 
 def extract_aggregates(values, grouping):
     """
@@ -302,7 +309,7 @@ def extract_aggregates(values, grouping):
     # Ensure grouping array can be multiplied row-wise with values
     if values.ndim == 2:
         grouping_reshaped = grouping[:, np.newaxis]
-    else: # values.ndim == 1
+    else:  # values.ndim == 1
         grouping_reshaped = grouping
     # TODO: can this be done in a cleaner way?
 
@@ -314,7 +321,7 @@ def extract_aggregates(values, grouping):
 
     # Sort based on the group indicator bits
     tab = mpc.np_concatenate((grouping_reshaped, u_reshaped), axis=1)
-    w = mpc.np_sort(tab, axis=0, key = lambda v: comparable_bit(v[0]))
+    w = mpc.np_sort(tab, axis=0, key=lambda v: comparable_bit(v[0]))
 
     # Return just the values
     return w[:, 1]
@@ -354,4 +361,3 @@ def group_count(grouping):
     # Selective sum to propagate first value in each group to the rest of the group
     r = selective_sum(t, grouping)
     return r
-

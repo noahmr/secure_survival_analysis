@@ -28,10 +28,10 @@ IN THE SOFTWARE.
 
 """
 
-## Imports
-from mpyc.runtime import mpc
 import numpy as np
 import scipy
+from mpyc.runtime import mpc
+
 
 def compute_z_scores(beta, se):
     """Compute z scores (e.g. square root of the Wald test statistic)
@@ -125,7 +125,7 @@ async def model_overview_table(table, ll):
     num_observations = len(table)
 
     # censoring variable; count the number of observed events
-    delta = table[:,1]
+    delta = table[:, 1]
     observed_events = await mpc.output(mpc.np_sum(delta))
 
     row_names = np.array(['number of observations', 'number of events observed', 'partial log-likelihood'])
@@ -160,6 +160,6 @@ def summary_table(beta, se):
     columns = ['coef', 'exp(coef)', 'se(coef)', 'coef lower 95%', 'coef upper 95%', 'exp(coef) lower 95%', 'exp(coef) upper 95%', 'z', 'p']
 
     # Gather all values into the summary table
-    values = np.column_stack((beta, np.exp(beta), se, ci_coeff[:,0], ci_coeff[:,1], ci_exp_coeff[:,0], ci_exp_coeff[:,1], z_scores, p_values))
+    values = np.column_stack((beta, np.exp(beta), se, ci_coeff[:, 0], ci_coeff[:, 1], ci_exp_coeff[:, 0], ci_exp_coeff[:, 1], z_scores, p_values))
 
     return columns, values

@@ -1,18 +1,12 @@
 """Implementation of concordance index for survival analysis
 using MPyC"""
 
-# MPyC imports
-from mpyc.runtime import mpc
-
-# Numpy
-import numpy as np
-
-# Python imports
 import logging
-
-# My code
+import numpy as np
+from mpyc.runtime import mpc
 from secure_survival_analysis.aggregation import mark_differences, group_values, selective_sum, group_sum
 from secure_survival_analysis.lexicographic import create_ordering
+
 
 def harrell_sort_times(times, hazards, status):
     """
@@ -48,13 +42,13 @@ def harrell_sort_times(times, hazards, status):
 
     # Sort lexicographically on survival time, status and then hazards
     ordering = create_ordering([0, 1], times[0].bit_length)
-    sorted_table = mpc.np_sort(table, axis=0, key = lambda v: ordering(v))
+    sorted_table = mpc.np_sort(table, axis=0, key=lambda v: ordering(v))
 
     # Extract the sorted times from the first column
-    sorted_status = sorted_table[:,2]
-    sorted_times = (sorted_table[:,0] + sorted_status) / 2
+    sorted_status = sorted_table[:, 2]
+    sorted_times = (sorted_table[:, 0] + sorted_status) / 2
 
-    return sorted_times, sorted_table[:,1], sorted_status
+    return sorted_times, sorted_table[:, 1], sorted_status
 
 
 def harrell_count_comparable_pairs(grouping, status):
@@ -130,7 +124,6 @@ def harrell_count_comparable_pairs(grouping, status):
     group_mask = mpc.np_concatenate((grouping[1:], array_type(np.array([1]))))
     u = d * group_mask
 
-
     # For each element, compute the total number of elements outside of its own group that
     # still come afterwards.
     remainders_ = mpc.np_flip(mpc.np_cumsum(mpc.np_flip(u)))
@@ -138,7 +131,6 @@ def harrell_count_comparable_pairs(grouping, status):
 
     # For elements that are not censored, everything afterwards is comparable
     comparable_outside_groups = mpc.np_matmul(remainders, status)
-
 
     # For each group, get the number of non-censored subjects in the group; Placed at the
     # last value of that group
@@ -148,6 +140,7 @@ def harrell_count_comparable_pairs(grouping, status):
     comparable_within_groups = mpc.np_matmul(censored, noncensored)
 
     return comparable_outside_groups + comparable_within_groups
+
 
 def np_xor(a, b):
     """
@@ -167,6 +160,7 @@ def np_xor(a, b):
 
     z = (a + b) - 2 * (a * b)
     return z
+
 
 async def harrell_count_concordant_and_tied(times, times_grouping, hazards, status):
     """
@@ -227,7 +221,7 @@ async def harrell_count_concordant_and_tied(times, times_grouping, hazards, stat
     # Sort using lexicographic ordering. By using the original order as the
     # second sorting column, this essentially becomes a stable sort.
     ordering = create_ordering([0, 2], hazards[0].bit_length)
-    sorted_table_ = mpc.np_sort(table, axis=0, key = lambda v: ordering(v))
+    sorted_table_ = mpc.np_sort(table, axis=0, key=lambda v: ordering(v))
 
     # Insert increasing indices again; These are the hazard ranks
     sorted_table = mpc.np_hstack((sorted_table_, increasing_range[:, np.newaxis]))
@@ -240,13 +234,12 @@ async def harrell_count_concordant_and_tied(times, times_grouping, hazards, stat
     # Include only the last 2 columns in this sorting operation as a
     # slight optimization
     #
-    result_table = mpc.np_sort(sorted_table[:, [2, 3]], axis=0, key = lambda v: v[0])
+    result_table = mpc.np_sort(sorted_table[:, [2, 3]], axis=0, key=lambda v: v[0])
 
     hazard_ranks = result_table[:, 1]
 
     await mpc.barrier("lexicographic sorting on hazard rate")
     logging.info("finished lexicographic sorting on hazard rate")
-
 
     ######## Step 2: compute the unit vector corresponding to each element. These
     ######## indicate where in the sorted hazards array they are positioned
@@ -258,7 +251,7 @@ async def harrell_count_concordant_and_tied(times, times_grouping, hazards, stat
         await mpc.throttler(load_percentage=0.01)
     # TODO: can this be done through numpy directly, instead of a for-loop?
 
-    #unit_vectors_.append(array_type(np.zeros(n)))
+    # unit_vectors_.append(array_type(np.zeros(n)))
     unit_vectors = mpc.np_vstack(unit_vectors_)  # convert to Numpy array
 
     # Next, sum them up in reverse order
@@ -266,7 +259,6 @@ async def harrell_count_concordant_and_tied(times, times_grouping, hazards, stat
 
     await mpc.barrier("generating unit vectors and masks")
     logging.info("finished generating unit vectors and masks")
-
 
     ######## Step 3: count the number of concordant pairs
     ########
@@ -318,7 +310,6 @@ async def harrell_count_concordant_and_tied(times, times_grouping, hazards, stat
     await mpc.barrier("counting concordant pairs")
     logging.info("finished counting concordant pairs")
 
-
     ######## Step 4: count the number of duplicate pairs (equal survival time, hazard rate and censoring)
     ########
 
@@ -331,12 +322,11 @@ async def harrell_count_concordant_and_tied(times, times_grouping, hazards, stat
     #
     hazard_duplicates = 1 - mark_differences(hazards)
     status_duplicates_ = 1 - np_xor(status[1:], status[:-1])
-    status_duplicates =  mpc.np_concatenate((array_type(np.array([0])), status_duplicates_))
+    status_duplicates = mpc.np_concatenate((array_type(np.array([0])), status_duplicates_))
     times_duplicates = 1 - times_grouping
 
     # Array marking all of the duplicates (with a 1)
     duplicates = times_duplicates * hazard_duplicates * status_duplicates
-
 
     ######## Step 5: count the number of tied pairs
     ########
@@ -403,11 +393,10 @@ async def harrell_count_pairs(times, hazards, status):
     times_sorted, hazards_sorted, status_sorted = harrell_sort_times(times, hazards, status)
 
     # Compute grouping (times are already sorted)
-    _, times_grouping = group_values(times_sorted[:,np.newaxis], sort_column=-1, group_column=0)
+    _, times_grouping = group_values(times_sorted[:, np.newaxis], sort_column=-1, group_column=0)
 
     await mpc.barrier("lexicographic sorting & grouping on survival time")
     logging.info("finished lexicographic sorting & grouping on survival time")
-
 
     # Count comparable
     comparable_pairs = harrell_count_comparable_pairs(times_grouping, status_sorted)
