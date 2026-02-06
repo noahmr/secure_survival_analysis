@@ -7,15 +7,15 @@ Description: Tools for lexicographic sorting using MPyC
 License: MIT License
 
 Copyright (c) 2025, Noah van der Meer
- 
+
 Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to 
+of this software and associated documentation files (the "Software"), to
 deal in the Software without restriction, including without limitation the
-rights to use, copy, modify, merge, publish, distribute, sublicense, and/or 
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
 sell copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in 
+The above copyright notice and this permission notice shall be included in
 all copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -48,20 +48,20 @@ class ordered_row:
         #   1 if self.row < rhs.row
         sgns = mpc.np_sgn(rhs.row - self.row, l = self.bitlength)
         squares = (sgns**2)
-        
+
         # by construction guaranteed to be either 0 or 2, thus divisible by 2
-        z = (sgns + squares) / 2 
-        
+        z = (sgns + squares) / 2
+
         n = len(z)
         r = z[-1]
         for j in range(n - 2, -1, -1):
             r = z[j] + (1 - squares[j]) * r
         return r
-    
+
 def create_ordering(indices, bitlength):
     """
     Create lexicographic ordering class, based on the given indices
-    
+
     Parameters
     ----------
     indices : list
@@ -73,9 +73,9 @@ def create_ordering(indices, bitlength):
     ------
     ordering type
     """
-    
+
     assert type(indices) == list
-    
+
     tp = type(f"ordered_row()", (ordered_row,), dict())
     tp.indices = indices
     tp.bitlength = bitlength

@@ -18,7 +18,7 @@ def harrell_sort_times(times, hazards, status):
     """
     Sort the provided survival data lexicographically on survival time, status (such
     that non-censored subjects come first) and finally hazard score.
-    
+
     Parameters
     ----------
     times : array
@@ -60,9 +60,9 @@ def harrell_sort_times(times, hazards, status):
 def harrell_count_comparable_pairs(grouping, status):
     """
     Count the number of comparable pairs
-    
+
     It is assumed that the values are sorted and grouped by (actual) survival time.
-    
+
     Parameters
     ----------
     grouping : array
@@ -90,7 +90,7 @@ def harrell_count_comparable_pairs(grouping, status):
     #
     # Next, a summation from the right:
     # [8, 8, 8, 5, 5, 3, 3, 3]
-    #  
+    #
     # Then, subtract the group sizes from this, which gives:
     # [5, 5, 5, 3, 3, 0, 0, 0]
     #
@@ -100,7 +100,7 @@ def harrell_count_comparable_pairs(grouping, status):
     # Thus multiply by the 'status', and then compute the sum.
     #
     #
-    # 
+    #
     # Example (part 2)
     #
     # What remains are the comparable elements within groups of equivalent survival times. Only elements with
@@ -118,10 +118,10 @@ def harrell_count_comparable_pairs(grouping, status):
     # while the total number of pairs is 1+2+3+4 = 10, therefore, the number of incomparable
     # pairs is 10-6 = 4.
     #
-    
+
     n = len(grouping)
     array_type = type(grouping)
-    
+
     # Compute group sizes 'd', with 'u_' as intermediate result
     d = group_sum(array_type(np.ones(n, dtype=int)), grouping)
 
@@ -129,30 +129,30 @@ def harrell_count_comparable_pairs(grouping, status):
     # the elements (except the last element) within each group to zero
     group_mask = mpc.np_concatenate((grouping[1:], array_type(np.array([1]))))
     u = d * group_mask
-    
-    
+
+
     # For each element, compute the total number of elements outside of its own group that
     # still come afterwards.
     remainders_ = mpc.np_flip(mpc.np_cumsum(mpc.np_flip(u)))
     remainders = remainders_ - d
-    
+
     # For elements that are not censored, everything afterwards is comparable
     comparable_outside_groups = mpc.np_matmul(remainders, status)
-    
-    
+
+
     # For each group, get the number of non-censored subjects in the group; Placed at the
     # last value of that group
     noncensored = selective_sum(status, grouping) * group_mask
     censored = d - noncensored
-    
+
     comparable_within_groups = mpc.np_matmul(censored, noncensored)
-    
+
     return comparable_outside_groups + comparable_within_groups
 
 def np_xor(a, b):
     """
     Simple helper function to compute the xor of two bit arrays a, b
-    
+
     Parameters
     ----------
     a : array
@@ -171,10 +171,10 @@ def np_xor(a, b):
 async def harrell_count_concordant_and_tied(times, times_grouping, hazards, status):
     """
     Count the number of concordant and tied pairs
-    
+
     It is assumed that the values are sorted lexicographically by (actual) survival
     time, status (inverted) and finally the hazard rate.
-    
+
     Parameters
     ----------
     times : array
@@ -194,7 +194,7 @@ async def harrell_count_concordant_and_tied(times, times_grouping, hazards, stat
     assert len(times) == len(status)
     assert len(times_grouping) == len(status)
     assert len(hazards) == len(status)
-    
+
     n = len(times)
     array_type = type(times)
 
@@ -286,12 +286,12 @@ async def harrell_count_concordant_and_tied(times, times_grouping, hazards, stat
     # computing the prefix sum and then inverting it the array, we obtain:
     # [1, 1, 1, 1, 0, 0, 0, 0]
     # which marks all of these subjects.
-    # 
+    #
     # By computing the inner product of this array with the mask, we obtain the contribution of
     # concordant pairs for this subject.
     #
     #
-    # Note: ties are deliberately excluded in the counting, due to the lexicographic sorting 
+    # Note: ties are deliberately excluded in the counting, due to the lexicographic sorting
     # first on hazard rate, then on survival time, which determines the hazard ranks.
     #
     # Specifically, for the hazard ranks, if multiple subjects have the same risk score, the
@@ -310,7 +310,7 @@ async def harrell_count_concordant_and_tied(times, times_grouping, hazards, stat
     # TODO: can this be done using numpy, instead of for-loop?
 
     concordant_results = mpc.np_fromlist(concordant_results)
-    
+
     # note: each entry only has a contribution if not censored; thus,
     # multiply in the status bits
     num_concordant = mpc.np_matmul(concordant_results, status)
@@ -364,7 +364,7 @@ async def harrell_count_concordant_and_tied(times, times_grouping, hazards, stat
     # Previously, an array marking the duplicates was computed. By inverting this array, and
     # then counting the group sizes (considering mutual duplicates as one group), we can
     # compute the total (erroneous) contribution to the ties.
-    # 
+    #
     # This value can then be subtracted from the tie count, giving the correct number of ties.
     #
     duplicate_grouping = 1 - (status * duplicates)
@@ -384,7 +384,7 @@ async def harrell_count_pairs(times, hazards, status):
     """
     Count the number of concordant, tied and comparable pairs according
     to Harrell's concordance score.
-    
+
     Parameters
     ----------
     times : array
@@ -417,7 +417,7 @@ async def harrell_count_pairs(times, hazards, status):
 
     # Compute concordant and tied pairs
     concordant_pairs, tied_pairs = await harrell_count_concordant_and_tied(times_sorted, times_grouping, hazards_sorted, status_sorted)
-    
+
     await mpc.barrier("counting concordant and tied pairs")
     logging.info("finished counting concordant and tied pairs")
 

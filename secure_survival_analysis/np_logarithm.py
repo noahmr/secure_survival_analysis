@@ -3,19 +3,19 @@ Author: Noah van der Meer
 Description: Implementation of a protocol for computing the logarithm of
     fixed point numbers, using MPyC numpy arrays
 
-    
+
 License: MIT License
 
 Copyright (c) 2025, Noah van der Meer
- 
+
 Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to 
+of this software and associated documentation files (the "Software"), to
 deal in the Software without restriction, including without limitation the
-rights to use, copy, modify, merge, publish, distribute, sublicense, and/or 
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
 sell copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in 
+The above copyright notice and this permission notice shall be included in
 all copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -45,7 +45,7 @@ import functools
 def log_taylor_degree(f):
     """Determine the degree of the Taylor polynomial necessary to (theoretically)
     achieve the full accuracy of the logarithm approximation
-        
+
     Parameters
     ----------
     f : int
@@ -59,7 +59,7 @@ def log_taylor_degree(f):
     assert isinstance(f, int)
 
     # Determine the degree of the Taylor polynomial by trying k = 1, 2, 3, ...
-    # 
+    #
     # This is not very efficient, but due to the use of Python caching, only
     # needs to happen once for a given base and precision.
     k = 1
@@ -69,7 +69,7 @@ def log_taylor_degree(f):
 
 def np_log_taylor(c):
     """Approximate the logarithm of secret fixed point numbers (within [0.5, 1))
-        
+
     Parameters
     ----------
     c : secfxp.array
@@ -84,7 +84,7 @@ def np_log_taylor(c):
 
     # Determine degree of Taylor polynomial
     theta = math.ceil(log_taylor_degree(f))
-    
+
     # Taylor polynomial centered around a=0.75
     a = 0.75
     y = c - a
@@ -104,7 +104,7 @@ def np_log_taylor(c):
 
 def np_log2(x):
     """Approximate the logarithm base 2 of an array of secret fixed point numbers
-        
+
     Parameters
     ----------
     x : secfxp.array
@@ -123,7 +123,7 @@ def np_log2(x):
     b = mpc.np_to_bits(x)
     assert (b.shape == (len(x), k))
 
-    # Prefix-OR of the bits 
+    # Prefix-OR of the bits
     or_op = lambda v1, v2: v1 + v2 - v1 * v2
     y_ = mpc.np_vstack(list(mpyc.mpctools.accumulate(mpc.np_rot90(b, k=1), or_op)))
     y = mpc.np_rot90(y_, k=3) # rotate back; and reverse order for each input
@@ -153,7 +153,7 @@ def np_log2(x):
 
 def np_log(x):
     """Approximate the natural logarithm of an array of secret fixed point numbers
-        
+
     Parameters
     ----------
     x : secfxp.array

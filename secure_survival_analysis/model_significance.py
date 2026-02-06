@@ -3,19 +3,19 @@ Author: Noah van der Meer
 Description: Implementation of statistical tests for the parameters of
     the proportional hazards model. This is based on SciPy.
 
-    
+
 License: MIT License
 
 Copyright (c) 2025, Noah van der Meer
- 
+
 Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to 
+of this software and associated documentation files (the "Software"), to
 deal in the Software without restriction, including without limitation the
-rights to use, copy, modify, merge, publish, distribute, sublicense, and/or 
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
 sell copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in 
+The above copyright notice and this permission notice shall be included in
 all copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -35,7 +35,7 @@ import scipy
 
 def compute_z_scores(beta, se):
     """Compute z scores (e.g. square root of the Wald test statistic)
-        
+
     Parameters
     ----------
     beta : np.array
@@ -60,7 +60,7 @@ def compute_z_scores(beta, se):
 
 def compute_p_values(z_scores):
     """Compute p values for the model parameters
-        
+
     Parameters
     ----------
     z_scores : np.array
@@ -92,12 +92,12 @@ def compute_coefficient_confidence_intervals(beta, se, alpha):
         standard error estimates for each of the model parameters (public)
     alpha : float
         confidence level
-        
+
     Returns
     ------
     k * 2 matrix containing confidence intervals, where k is
     the number of model parameters
-    
+
     """
 
     # Value 'c' such that P(-c <= T <= c) = alpha, where T is standard normal
@@ -115,11 +115,11 @@ async def model_overview_table(table, ll):
         original secret shared data on which the model was fitted
     ll : float
         partial log-likelihood value of the model (assumed to be open)
-    
+
     Returns
     ------
     Tuple with row names, and array containing the relevant statistical values
-    
+
     """
 
     num_observations = len(table)
@@ -130,7 +130,7 @@ async def model_overview_table(table, ll):
 
     row_names = np.array(['number of observations', 'number of events observed', 'partial log-likelihood'])
     values = np.array([num_observations, observed_events, ll])
-    
+
     return row_names, values
 
 
@@ -144,11 +144,11 @@ def summary_table(beta, se):
         model parameters (public)
     se : np.array
         standard error estimates (public)
-    
+
     Returns
     ------
     Tuple with column names, and table containing the relevant statistical values
-    
+
     """
 
     z_scores = compute_z_scores(beta, se)
