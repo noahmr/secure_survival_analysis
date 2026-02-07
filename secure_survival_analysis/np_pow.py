@@ -3,19 +3,19 @@ Author: Noah van der Meer
 Description: Implementation of a secure exponentiation with fixed point
     exponents, using MPyC numpy arrays
 
-    
+
 License: MIT License
 
 Copyright (c) 2025, Noah van der Meer
- 
+
 Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to 
+of this software and associated documentation files (the "Software"), to
 deal in the Software without restriction, including without limitation the
-rights to use, copy, modify, merge, publish, distribute, sublicense, and/or 
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
 sell copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in 
+The above copyright notice and this permission notice shall be included in
 all copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -28,19 +28,13 @@ IN THE SOFTWARE.
 
 """
 
-
-# MPyC imports
-from mpyc.runtime import mpc
-from mpyc.asyncoro import mpc_coro
-import gmpy2
-
-# Numpy
-import numpy as np
-
-# Python imports
 import math
 import secrets
 import functools
+import gmpy2
+import numpy as np
+from mpyc.runtime import mpc
+
 
 # Cache the result to avoid re-computing it every time, since the fixed point
 # bitlength typically stays the same in any case.
@@ -48,7 +42,7 @@ import functools
 def pow_taylor_degree(b, f):
     """Determine the degree of the Taylor polynomial necessary to (theoretically)
     achieve the full accuracy of the exponentiation approximation
-        
+
     Parameters
     ----------
     b : int
@@ -68,7 +62,7 @@ def pow_taylor_degree(b, f):
     log2logb = math.log(log2b)
 
     # Determine the degree of the Taylor polynomial by trying k = 1, 2, 3, ...
-    # 
+    #
     # This is not very efficient, but due to the use of Python caching, only
     # needs to happen once for a given base and precision.
     k = 1
@@ -78,6 +72,7 @@ def pow_taylor_degree(b, f):
         k = k + 1
 
     return k
+
 
 def np_pow_taylor(b, e):
     """Approximate b^e using a Taylor approximation, for public integer base b
@@ -115,7 +110,8 @@ def np_pow_taylor(b, e):
     z = 1 + mpc.np_matmul(y_powers, coeff)
     return z
 
-@mpc_coro
+
+@mpc.coroutine
 async def np_pow_integer_exponent(b, e):
     """Compute b^e, for public integer base b and secret-shared integer exponents e
 
@@ -156,7 +152,6 @@ async def np_pow_integer_exponent(b, e):
     k = e.sectype.bit_length
     assert (modulus // num_parties) > (2**(k + sec_param))
 
-
     ### Step 1: generate the random pair [r], [b^{-r}]
 
     # Let each party locally generate a random number r_i
@@ -170,27 +165,26 @@ async def np_pow_integer_exponent(b, e):
     # Locally compute b^{-r_i} at each party
     b_pow_r_i_inverse_ = gmpy2.powmod_exp_list(b, -r_i, modulus)
     b_pow_r_i_inverse = np.vectorize(int, otypes='O')(b_pow_r_i_inverse_)
-    
+
     # Secret-share b^{-r_i} with the other parties, and multiply to obtain b^{-r}
     b_pow_r_inverse_factors = mpc.np_stack(mpc.input(ttype(b_pow_r_i_inverse)), axis=0)
     b_pow_r_inverse = mpc.np_prod(b_pow_r_inverse_factors, axis=0)
 
-
     ### Step 2: open e + r to all parties, and compute b^{e + r} locally
     e_plus_r_ = await mpc.output(e + r)
-    e_plus_r = (e_plus_r_ % modulus) # ensure (e_plus_r_ > 0)
+    e_plus_r = (e_plus_r_ % modulus)  # ensure (e_plus_r_ > 0)
 
     b_pow_e_r_ = gmpy2.powmod_exp_list(b, e_plus_r, modulus)
     b_pow_e_r = np.vectorize(int, otypes='O')(b_pow_e_r_)
-
 
     ### Step 3: extract the result b^e by multiplying with [b^{-r}]
     b_pow_e = b_pow_e_r * b_pow_r_inverse
 
     return b_pow_e
 
-@mpc_coro
-async def np_pow_integer_base(b, e, e_lower_bound):#
+
+@mpc.coroutine
+async def np_pow_integer_base(b, e, e_lower_bound):
     """Compute b^e, for public integer base b and secret-shared fixed point exponents e
 
     Parameters
@@ -201,7 +195,7 @@ async def np_pow_integer_base(b, e, e_lower_bound):#
         secret-shared fixed point exponents
     e_lower_bound : float
         public lower bound on the exponents
-        
+
     Returns
     -------
     secret-shared array containing b^e
@@ -220,7 +214,7 @@ async def np_pow_integer_base(b, e, e_lower_bound):#
     # For it to be possible for b^e to be represented as a fixed point:
     #
     # (b^e) < 2^{l - f}  <=>  e < log_b(2^{l - f})  <=>  e < (l - f)log_b(2)
-    # 
+    #
     # Therefore log_2(e) < log_2((l - f)log_b(2)), which gives an upper bound on the
     # bitlength of e.
     e_max_bitlength = f + math.ceil(((l - f) * math.log(2, b))).bit_length() + 1
@@ -239,7 +233,7 @@ async def np_pow_integer_base(b, e, e_lower_bound):#
     e_pow_frac = np_pow_taylor(b, e_frac)
 
     ### Step 4: compute b^{e_int} exactly
-    e_int_ = await mpc.gather(e_int_) 
+    e_int_ = await mpc.gather(e_int_)
     e_int = secint.array(e_int_.value)  # convert from secfxp to secint
 
     e_pow_int_ = np_pow_integer_exponent(b, e_int)
@@ -253,10 +247,11 @@ async def np_pow_integer_base(b, e, e_lower_bound):#
         # for the negative exponents, divide out the b^{|e_lower_bound|} again
         d = ltz * (b**(e_lower_bound)) + (1 - ltz)
         e_pow = e_pow * d
-    
+
     return e_pow
 
-@mpc_coro
+
+@mpc.coroutine
 async def np_pow(b, e, e_lower_bound):
     """Compute b^e, for public base b and secret-shared fixed point exponents e
 

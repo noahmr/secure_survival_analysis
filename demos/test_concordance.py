@@ -11,15 +11,15 @@ was synthetically generated for testing and validation purposes.
 License: MIT License
 
 Copyright (c) 2025, Noah van der Meer
- 
+
 Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to 
+of this software and associated documentation files (the "Software"), to
 deal in the Software without restriction, including without limitation the
-rights to use, copy, modify, merge, publish, distribute, sublicense, and/or 
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
 sell copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in 
+The above copyright notice and this permission notice shall be included in
 all copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -32,22 +32,16 @@ IN THE SOFTWARE.
 
 """
 
-# MPyC
-from mpyc.runtime import mpc
-
-# Numpy & Pandas
-import pandas as pd
-import numpy as np
-np.set_printoptions(suppress=True)
-
-# Python
-import logging
 import sys
-
-# This repository
+import logging
+import numpy as np
+import pandas as pd
+from mpyc.runtime import mpc
 from secure_survival_analysis.concordance import harrell_count_pairs, harrell_concordance_index
 
+np.set_printoptions(suppress=True)
 secfxp = mpc.SecFxp(40, 15)
+
 
 async def main():
     # Handle arguments
@@ -62,7 +56,7 @@ async def main():
 
     # Read dataset
     logging.info("Read dataset")
-    #synthetic = pd.read_csv('synthetic_hazards500.csv')[:num_values]
+    # synthetic = pd.read_csv('synthetic_hazards500.csv')[:num_values]
     synthetic = pd.read_csv('synthetic_hazards10000.csv')[:num_values]
 
     # Extract 'time', 'hazards' and 'status' columns
@@ -96,7 +90,6 @@ async def main():
     print("Concordance index: ", concordance_index)
 
     logging.info("finished computing concordance index through MPyC")
-
 
     await mpc.shutdown()
 

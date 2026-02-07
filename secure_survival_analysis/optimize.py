@@ -3,19 +3,19 @@ Author: Noah van der Meer
 Description: Implementation of optimization methods, including gradient
     descent, and the BFGS and L-BFGS quasi-newton methods
 
-    
+
 License: MIT License
 
 Copyright (c) 2025, Noah van der Meer
- 
+
 Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to 
+of this software and associated documentation files (the "Software"), to
 deal in the Software without restriction, including without limitation the
-rights to use, copy, modify, merge, publish, distribute, sublicense, and/or 
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
 sell copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in 
+The above copyright notice and this permission notice shall be included in
 all copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -28,17 +28,17 @@ IN THE SOFTWARE.
 
 """
 
-## Imports
-from mpyc.runtime import mpc
-import numpy as np
 import logging
+import numpy as np
+from mpyc.runtime import mpc
+
 
 async def gradient_descent(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005):
     """Use gradient descent to minimize the objective function
-        
+
     Parameters
     ----------
-    f : 
+    f :
         objective function
     f_grad :
         gradient of objective function
@@ -48,15 +48,15 @@ async def gradient_descent(f, f_grad, beta0, alpha, num_iterations, tolerance=0.
         step size
     num_iterations :
         maximum number of iterations to perform
-    tolerance : 
+    tolerance :
         tolerance for stopping criterion
-        
+
     Returns
     ------
     Minimizer beta, list of function values of each iteration
 
     """
-    
+
     secfxp = type(beta0[0])
 
     logging.info("gradient_descent(): starting gradient descent algorithm")
@@ -66,8 +66,8 @@ async def gradient_descent(f, f_grad, beta0, alpha, num_iterations, tolerance=0.
     grad_norm = secfxp(1)  # initialize to 1 with the correct type
 
     # List of function values for each iteration, for analysis purposes
-    #likelihoods = [f(beta)]
-    
+    # likelihoods = [f(beta)]
+
     for i in range(0, num_iterations):
 
         # Evaluate stopping criterion
@@ -84,12 +84,11 @@ async def gradient_descent(f, f_grad, beta0, alpha, num_iterations, tolerance=0.
 
         # Update estimate through gradient descent step
         beta = beta - alpha * grad
-        
-        #ll = f(beta)
-        #likelihoods.append(ll)
+
+        # ll = f(beta)
+        # likelihoods.append(ll)
 
         await mpc.barrier(f"iteration {i}")
-        
 
     logging.info("gradient_descent() finished")
 
@@ -115,7 +114,7 @@ async def bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005):
 
     Parameters
     ----------
-    f : 
+    f :
         objective function
     f_grad :
         gradient of objective function
@@ -125,15 +124,15 @@ async def bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005):
         step size
     num_iterations :
         maximum number of iterations to perform
-    tolerance : 
+    tolerance :
         tolerance for stopping criterion
-        
+
     Returns
     ----------
     BFGS estimate for a minimizer of f, list of function values
 
     """
-    
+
     secarray = type(beta0)
     secfxp = type(beta0[0])
 
@@ -141,7 +140,7 @@ async def bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005):
     beta = beta0
     beta_prev = None
 
-    # keep track of gradient 
+    # keep track of gradient
     grad_prev = None
 
     # norm of step direction; for stopping criterion
@@ -151,8 +150,8 @@ async def bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005):
     H = None
 
     # List of function values for each iteration, for analysis purposes
-    #likelihoods = [f(beta)]
-    
+    # likelihoods = [f(beta)]
+
     for i in range(0, num_iterations):
 
         # Evaluate stopping criterion
@@ -176,7 +175,7 @@ async def bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005):
             logging.info("--- gradient descent step")
 
             # Explicitly Dampen the first step, since the gradient is typically very large.
-            # 
+            #
             # The l-bfgs steps are damped in a different manner.
             l2 = mpc.statistics._fsqrt(mpc.np_matmul(grad, grad))
             gamma = 1 / l2
@@ -193,7 +192,6 @@ async def bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005):
 
             w = mpc.np_matmul(H, grad)
 
-
         w_norm = mpc.statistics._fsqrt(mpc.np_matmul(w, w))
 
         # Bookkeeping
@@ -203,12 +201,11 @@ async def bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005):
         # Update beta with l-bfgs step
         beta = beta - alpha * w
 
-        #ll = f(beta)
-        #likelihoods.append(ll)
+        # ll = f(beta)
+        # likelihoods.append(ll)
 
         await mpc.barrier(f"iteration {i}")
 
-        
     logging.info("bfgs() finished")
 
     logging.info("bfgs(): evaluating objective function")
@@ -252,7 +249,7 @@ def two_loop_recursion(s, y, rho, grad):
 
     l = len(y)
     a = [None] * l
-    
+
     w = grad
     for j in range(l - 1, -1, -1):
         # note: w is changing every iteration. Therefore inner products are
@@ -263,19 +260,20 @@ def two_loop_recursion(s, y, rho, grad):
     # Note: scale using the last y, s vectors
     gamma = mpc.np_matmul(y[-1], s[-1]) / mpc.np_matmul(y[-1], y[-1])
     w = gamma * w
-    
+
     for j in range(0, l):
         b = rho[j] * mpc.np_matmul(y[j], w)
         w = w + (a[j] - b) * s[j]
 
     return w
 
+
 async def lbfgs(f, f_grad, beta0, alpha, num_iterations, m, tolerance=0.005):
     """Minimize the objective function f (with gradient f_grad) through the l-bfgs method
 
     Parameters
     ----------
-    f : 
+    f :
         objective function
     f_grad :
         gradient of objective function
@@ -287,15 +285,15 @@ async def lbfgs(f, f_grad, beta0, alpha, num_iterations, m, tolerance=0.005):
         maximum number of iterations to perform
     m :
         l-bfgs memory size (e.g. 5)
-    tolerance : 
+    tolerance :
         tolerance for stopping criterion
-        
+
     Returns
     ----------
     L-BFGS estimate for a minimizer of f, list of function values
 
     """
-    
+
     secfxp = type(beta0[0])
 
     logging.info("lbfgs(): starting lbfgs algorithm")
@@ -306,16 +304,16 @@ async def lbfgs(f, f_grad, beta0, alpha, num_iterations, m, tolerance=0.005):
     s = []
     y = []
     rho = []
-    
-    # keep track of gradient 
+
+    # keep track of gradient
     grad_prev = None
 
     # norm of step direction; for stopping criterion
     w_norm = secfxp(1)  # initialize to 1 with the correct type
 
     # List of function values for each iteration, for analysis purposes
-    #likelihoods = [f(beta)]
-    
+    # likelihoods = [f(beta)]
+
     for i in range(0, num_iterations):
 
         # Evaluate stopping criterion
@@ -351,7 +349,7 @@ async def lbfgs(f, f_grad, beta0, alpha, num_iterations, m, tolerance=0.005):
             logging.info("--- gradient descent step")
 
             # Explicitly dampen the first step, since the first gradient is typically very large.
-            # 
+            #
             # The l-bfgs steps are damped in a different manner.
             l2 = mpc.statistics._fsqrt(mpc.np_matmul(grad, grad))
             gamma = 1 / l2
@@ -370,12 +368,11 @@ async def lbfgs(f, f_grad, beta0, alpha, num_iterations, m, tolerance=0.005):
         # Update beta with l-bfgs step
         beta = beta - alpha * w
 
-        #ll = f(beta)
-        #likelihoods.append(ll)
+        # ll = f(beta)
+        # likelihoods.append(ll)
 
         await mpc.barrier(f"iteration {i}")
 
-        
     logging.info("lbfgs() finished")
 
     logging.info("lbfgs(): evaluating objective function")
