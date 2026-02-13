@@ -154,7 +154,7 @@ def selective_sum(values, grouping):
     combined = mpc.np_concatenate((reshaped, grouping[:, np.newaxis]), axis=1)
 
     # Prefix-OP; Note: the result is an iterator of secure arrays (of length 2 each)
-    prefix_result = mpc.np_vstack(list(mpctools.accumulate(combined, ssum_op)))
+    prefix_result = mpc.np_vstack(list(mpctools.accumulate(combined, ssum_op, method='Brent-Kung')))
     # TODO: use numpy function for this? E.g. np_accumulate
 
     # Select all except for the last entry (which has the indicator bits)
