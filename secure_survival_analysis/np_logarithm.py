@@ -38,7 +38,7 @@ import mpyc.mpctools
 
 @functools.cache
 def _log_taylor_degree(f):
-    """Required degree of Taylor polynomial as a function of f."""
+    """Required degree of Taylor polynomial for log x as a function of f."""
     # Degree k s.t. maximum error of 1/(k+1) 2^-(k+1) <= 2^-f, that is log2(k+1) + k+1 >= f.
     k = f  # invariant: math.log2(k+1) + k+1 >= f
     while math.log2(k) + k >= f:
@@ -48,8 +48,8 @@ def _log_taylor_degree(f):
 
 def np_log2(a):
     """Secure elementwise logarithm base 2 of a."""
-    f = type(a).frac_length
-    l = type(a).sectype.bit_length
+    f = a.frac_length
+    l = a.sectype.bit_length
     x = mpc.np_to_bits(a, l=l-1)  # low to high bits, ignore sign bit
     x = np.flip(x, axis=-1)
     k, v = mpc.np_find(x, 1, cs_f=lambda b, i: (i+1+b, (b+1) * 2**i))
