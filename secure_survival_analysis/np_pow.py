@@ -32,7 +32,7 @@ import math
 import secrets
 import functools
 import gmpy2
-import numpy as np
+from mpyc.numpy import np
 from mpyc.runtime import mpc
 
 
@@ -91,7 +91,7 @@ async def np_pow_integer_exponent(b, a):
     ### Step 1: generate the random pair [r], [b^{-r}]
 
     # Let each party locally generate a random number r_i
-    upper = math.ceil(1<<(l + k) / m)
+    upper = 1<<(l + k) // m
     r_i = np.array([secrets.randbelow(upper) for _ in range(0, len(a))], dtype=object)
 
     # Secret-share with the other parties, and sum to obtain r

@@ -32,7 +32,7 @@ import sys
 import time
 import math
 import logging
-import numpy as np
+from mpyc.numpy import np
 from mpyc.runtime import mpc
 from secure_survival_analysis import np_pow
 

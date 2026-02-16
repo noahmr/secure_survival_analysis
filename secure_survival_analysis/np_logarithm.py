@@ -33,7 +33,6 @@ import functools
 import logging
 import numpy as np
 from mpyc.runtime import mpc
-import mpyc.mpctools
 
 
 @functools.cache
