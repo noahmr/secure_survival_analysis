@@ -33,6 +33,10 @@ import numpy as np
 from mpyc.runtime import mpc
 
 
+def norm(a):
+    return mpc.statistics._fsqrt(a @ a)
+
+
 async def gradient_descent(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005):
     """Use gradient descent to minimize the objective function
 
@@ -56,57 +60,19 @@ async def gradient_descent(f, f_grad, beta0, alpha, num_iterations, tolerance=0.
     Minimizer beta, list of function values of each iteration
 
     """
-
-    secfxp = type(beta0[0])
-
-    logging.info("gradient_descent(): starting gradient descent algorithm")
     beta = beta0
-
-    # norm of gradient; for stopping criterion
-    grad_norm = secfxp(1)  # initialize to 1 with the correct type
-
-    # List of function values for each iteration, for analysis purposes
-    # likelihoods = [f(beta)]
-
-    for i in range(0, num_iterations):
-
-        # Evaluate stopping criterion
-        stopping_criterion = await mpc.output(grad_norm < tolerance)
-        if i >= 2 and stopping_criterion:
-            logging.info("gradient_descent(): stopping criterion triggered")
-            break
-
-        logging.info(f"gradient_descent(): starting iteration {i}")
-
-        # Evaluate gradient
+    for i in range(num_iterations):
+        logging.info(f"gradient_descent(): iteration {i}")
         grad = f_grad(beta)
-        grad_norm = mpc.statistics._fsqrt(mpc.np_matmul(grad, grad))
-
-        # Update estimate through gradient descent step
-        beta = beta - alpha * grad
-
-        # ll = f(beta)
-        # likelihoods.append(ll)
-
-        await mpc.barrier(f"iteration {i}")
-
-    logging.info("gradient_descent() finished")
+        beta = beta - alpha * grad  # gradient descent step
+        if await mpc.output(norm(grad) < tolerance):
+            break
 
     logging.info("gradient_descent(): evaluating objective function")
     likelihoods = [f(beta)]
-
     await mpc.barrier(f"objective function")
     logging.info("finished computing objective function")
-
     return beta, likelihoods
-
-
-def update_inverse_hessian(H, s, y):
-    rho = 1 / y @ s
-    r = rho * s
-    A = np.eye(len(s)) - np.outer(r, y)  # I - rho_k s_k y_k^T
-    C = np.outer(r, s)  # (rho_k s_k s_k^T)
-    return A @ H @ A.T + C
 
 
 async def bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005):
@@ -132,88 +98,47 @@ async def bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005):
     BFGS estimate for a minimizer of f, list of function values
 
     """
-
-    secarray = type(beta0)
-    secfxp = type(beta0[0])
-
     logging.info("bfgs(): starting bfgs algorithm")
     beta = beta0
-    beta_prev = None
+    grad = f_grad(beta)
 
-    # keep track of gradient
-    grad_prev = None
+    # First iteration is simply gradient descent; We only have the gradient
+    # at one point, no info about curvature yet.
+    logging.info("--- gradient descent step")
 
-    # norm of step direction; for stopping criterion
-    w_norm = secfxp(1)  # initialize to 1 with the correct type
+    # Explicitly dampen the first step, since the gradient is typically very large.
+    # The bfgs steps are damped in a different manner.
+    w = grad / norm(grad)
+    beta_prev = beta
+    beta = beta - alpha * w  # bfgs step
+    await mpc.barrier(f"gradient descent step")
 
-    # estimate inverse Hessian matrix
-    H = None
-
-    # List of function values for each iteration, for analysis purposes
-    # likelihoods = [f(beta)]
-
-    for i in range(0, num_iterations):
-
-        # Evaluate stopping criterion
-        stopping_criterion = await mpc.output(w_norm < tolerance)
-        if i >= 2 and stopping_criterion:
-            logging.info("bfgs(): stopping criterion triggered")
-            break
-
-        logging.info(f"bfgs(): starting iteration {i}")
-        grad = f_grad(beta)
-
-        # Bookkeeping
-        w = None
-        if i > 0:
-            s_i = beta - beta_prev
-            y_i = grad - grad_prev
-
-        # First iteration is simply gradient descent; We only have the gradient
-        # at one point, no info about curvature yet.
-        if i == 0:
-            logging.info("--- gradient descent step")
-
-            # Explicitly Dampen the first step, since the gradient is typically very large.
-            #
-            # The l-bfgs steps are damped in a different manner.
-            l2 = mpc.statistics._fsqrt(mpc.np_matmul(grad, grad))
-            gamma = 1 / l2
-            w = gamma * grad
-
-        else:
-            logging.info("--- bfgs step")
-
-            # Update estimate of inverse Hessian matrix
-            if H is None:
-                gamma = mpc.np_matmul(y_i, s_i) / mpc.np_matmul(y_i, y_i)
-                H = gamma * secarray(np.eye(len(beta)))
-            H = update_inverse_hessian(H, s_i, y_i)
-
-            w = mpc.np_matmul(H, grad)
-
-        w_norm = mpc.statistics._fsqrt(mpc.np_matmul(w, w))
-
-        # Bookkeeping
-        beta_prev = beta
+    for i in range(1, num_iterations):
+        logging.info(f"bfgs(): {i}")
         grad_prev = grad
+        grad = f_grad(beta)
+        s_i = beta - beta_prev
+        y_i = grad - grad_prev
 
-        # Update beta with l-bfgs step
-        beta = beta - alpha * w
-
-        # ll = f(beta)
-        # likelihoods.append(ll)
-
-        await mpc.barrier(f"iteration {i}")
-
-    logging.info("bfgs() finished")
+        logging.info("--- bfgs step")
+        rho_i = 1 / (y_i @ s_i)
+        if i == 1:
+            gamma = 1 / (rho_i * (y_i @ y_i))
+            H = np.diag(mpc.np_fromlist([gamma] * len(beta)))
+        r = rho_i * s_i
+        A = np.eye(len(beta)) - np.outer(r, y_i)  # I - rho_i s_i y_i^T
+        C = np.outer(r, s_i)  # rho_i s_i s_i^T
+        H = A @ H @ A.T + C  # update Hessian
+        w = H @ grad
+        beta_prev = beta
+        beta = beta - alpha * w  # bfgs step
+        if await mpc.output(norm(w) < tolerance):
+            break
 
     logging.info("bfgs(): evaluating objective function")
     likelihoods = [f(beta)]
-
     await mpc.barrier(f"objective function")
     logging.info("finished computing objective function")
-
     return beta, likelihoods, H
 
 
@@ -244,27 +169,17 @@ def two_loop_recursion(s, y, rho, grad):
     Returns
     ------
     Estimate of H^{-1} * grad, e.g. the l-bfgs direction
-
     """
-
+    w = grad
     l = len(y)
     a = [None] * l
-
-    w = grad
-    for j in range(l - 1, -1, -1):
-        # note: w is changing every iteration. Therefore inner products are
-        # computed sequentially
-        a[j] = rho[j] * mpc.np_matmul(s[j], w)
-        w = w - a[j] * y[j]
-
-    # Note: scale using the last y, s vectors
-    gamma = mpc.np_matmul(y[-1], s[-1]) / mpc.np_matmul(y[-1], y[-1])
-    w = gamma * w
-
-    for j in range(0, l):
-        b = rho[j] * mpc.np_matmul(y[j], w)
-        w = w + (a[j] - b) * s[j]
-
+    for j in range(l-1, -1, -1):
+        a[j] = rho[j] * (s[j] @ w)
+        w -= a[j] * y[j]
+    w *= (y[-1] @ s[-1]) / (y[-1] @ y[-1])  # NB: scale w using last y, s vectors
+    for j in range(l):
+        b = rho[j] * (y[j] @ w)
+        w += (a[j] - b) * s[j]
     return w
 
 
@@ -293,92 +208,50 @@ async def lbfgs(f, f_grad, beta0, alpha, num_iterations, m, tolerance=0.005):
     L-BFGS estimate for a minimizer of f, list of function values
 
     """
-
-    secfxp = type(beta0[0])
-
     logging.info("lbfgs(): starting lbfgs algorithm")
     beta = beta0
-    beta_prev = None
+    grad = f_grad(beta)
 
     # memory of previous point/gradient differences
     s = []
     y = []
     rho = []
 
-    # keep track of gradient
-    grad_prev = None
+    # First iteration is simply gradient descent; We only have the gradient
+    # at one point, no info about curvature yet.
+    logging.info("--- gradient descent step")
 
-    # norm of step direction; for stopping criterion
-    w_norm = secfxp(1)  # initialize to 1 with the correct type
+    # Explicitly dampen the first step, since the first gradient is typically very large.
+    # The l-bfgs steps are damped in a different manner.
+    w = grad / norm(grad)  # NB: norm = 1
+    beta_prev = beta
+    beta = beta - alpha * w  # l-bfgs step
+    await mpc.barrier(f"gradient descent step")
 
-    # List of function values for each iteration, for analysis purposes
-    # likelihoods = [f(beta)]
-
-    for i in range(0, num_iterations):
-
-        # Evaluate stopping criterion
-        stopping_criterion = await mpc.output(w_norm < tolerance)
-        if i >= 2 and stopping_criterion:
-            logging.info("lbfgs(): stopping criterion triggered")
-            break
-
-        logging.info(f"lbfgs(): starting iteration {i}")
+    for i in range(1, num_iterations):
+        logging.info(f"lbfgs(): iteration {i}")
+        grad_prev = grad
         grad = f_grad(beta)
-        logging.info(f"lbfgs(): end grad starting iteration {i}")
-
-        # Bookkeeping
-        w = None
-        if i > 0:
-            s_i = beta - beta_prev
-            s.append(s_i)
-
-            y_i = grad - grad_prev
-            y.append(y_i)
-
-            rho_i = 1 / mpc.np_matmul(y_i, s_i)
-            rho.append(rho_i)
-
+        s_i = beta - beta_prev
+        y_i = grad - grad_prev
+        rho_i = 1 / (y_i @ s_i)
+        s.append(s_i)
+        y.append(y_i)
+        rho.append(rho_i)
         if len(s) > m:
             s.pop(0)
             y.pop(0)
             rho.pop(0)
 
-        # First iteration is simply gradient descent; We only have the gradient
-        # at one point, no info about curvature yet.
-        if i == 0:
-            logging.info("--- gradient descent step")
-
-            # Explicitly dampen the first step, since the first gradient is typically very large.
-            #
-            # The l-bfgs steps are damped in a different manner.
-            l2 = mpc.statistics._fsqrt(mpc.np_matmul(grad, grad))
-            gamma = 1 / l2
-            w = gamma * grad
-
-        else:
-            logging.info("--- l-bfgs step")
-            w = two_loop_recursion(s, y, rho, grad)
-
-        w_norm = mpc.statistics._fsqrt(mpc.np_matmul(w, w))
-
-        # Bookkeeping
+        logging.info("--- l-bfgs step")
+        w = two_loop_recursion(s, y, rho, grad)
         beta_prev = beta
-        grad_prev = grad
-
-        # Update beta with l-bfgs step
-        beta = beta - alpha * w
-
-        # ll = f(beta)
-        # likelihoods.append(ll)
-
-        await mpc.barrier(f"iteration {i}")
+        beta = beta - alpha * w  # l-bfgs step
+        if await mpc.output(norm(w) < tolerance):
+            break
 
     logging.info("lbfgs() finished")
-
-    logging.info("lbfgs(): evaluating objective function")
     likelihoods = [f(beta)]
-
     await mpc.barrier(f"objective function")
     logging.info("finished computing objective function")
-
     return beta, likelihoods
