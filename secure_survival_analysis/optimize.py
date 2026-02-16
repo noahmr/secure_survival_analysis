@@ -65,7 +65,7 @@ async def gradient_descent(f, f_grad, beta0, alpha, num_iterations, tolerance=0.
         logging.info(f"gradient_descent(): iteration {i}")
         grad = f_grad(beta)
         beta = beta - alpha * grad  # gradient descent step
-        if await mpc.output(norm(grad) < tolerance):
+        if await mpc.output(grad @ grad < tolerance**2):
             break
 
     logging.info("gradient_descent(): evaluating objective function")
@@ -132,7 +132,7 @@ async def bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005):
         w = H @ grad
         beta_prev = beta
         beta = beta - alpha * w  # bfgs step
-        if await mpc.output(norm(w) < tolerance):
+        if await mpc.output(w @ w < tolerance**2):
             break
 
     logging.info("bfgs(): evaluating objective function")
@@ -247,7 +247,7 @@ async def lbfgs(f, f_grad, beta0, alpha, num_iterations, m, tolerance=0.005):
         w = two_loop_recursion(s, y, rho, grad)
         beta_prev = beta
         beta = beta - alpha * w  # l-bfgs step
-        if await mpc.output(norm(w) < tolerance):
+        if await mpc.output(w @ w < tolerance**2):
             break
 
     logging.info("lbfgs() finished")
