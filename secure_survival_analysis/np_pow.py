@@ -108,7 +108,7 @@ async def np_pow_integer_exponent(b, a):
 
     ### Step 2: open a + r to all parties, and compute b^{a + r} locally
     c = await mpc.output(a + r)
-    c = c % modulus  # ensure c > 0
+#    c = c % modulus  # ensure c > 0
 #    c = await mpc.output(a + r, raw=True)
 #    c = c.value ## % modulus  # ensure c > 0
     b_pow_a_r = gmpy2.powmod_exp_list(b, c, modulus)
@@ -117,44 +117,35 @@ async def np_pow_integer_exponent(b, a):
     ### Step 3: extract the result b^a by multiplying with [b^{-r}]
     b_pow_e = b_pow_a_r * b_pow_r_inverse
     b_pow_e = await mpc.gather(b_pow_e)
-    return b_pow_e * 2**f
+    return b_pow_e * b**f
 
 
-def np_exp2(a, lower_bound):
-    """Compute 2^a, secret-shared fixed point exponents a.
-
-    ... lower_bound: public lower bound on (elements of) a
-    """
+def np_exp2(a):
+    """Compute 2^a, secret-shared fixed point exponents a."""
     l = a.sectype.bit_length
     f = a.sectype.frac_length
     # For it to be possible for 2^a to be represented as a signed fixed-point number:
     # 2^a < 2^(l-1-f)  <=>  a < l-1-f
     # Therefore log_2 a < log_2(l-1 - f), which gives an upper bound on the bit length of a.
     a_max_bitlength = f + (l-1 - f).bit_length() + 1
-
-    if lower_bound < 0:
-        ltz = mpc.np_sgn(a, l=a_max_bitlength, LT=True)
-        a += np.where(ltz, -lower_bound, 0)  # ensure nonnegative a
     a_int = mpc.np_trunc(a, l=a_max_bitlength, f=f)  # integral part of a
     a_frac = a - a_int * 2**f                        # fractional part of a
     a_pow_frac = np_exp2_taylor(a_frac)  # 2^a_frac
-    a_pow_int = np_pow_integer_exponent(2, a_int)  # 2^a_int
+    a_int += 2**(l-1-f-f)  # extra -f as this integer is multiplied by 2^f before addition to a_int
+    a_pow_int = np_pow_integer_exponent(2, a_int)  # 2^a_int, nonnegative a_int
+    a_pow_int /= a.sectype.field(2)**(1<<(l-1-f))
     a_pow = a_pow_frac * a_pow_int  # 2^a = 2^a_frac * 2^a_int
-    if lower_bound < 0:
-        a_pow *= np.where(ltz, 2**lower_bound, 1)  # compensate for shift of a
     return a_pow
 
 
-def np_pow(b, a, lower_bound):
+def np_pow(b, a):
     """Secure elementwise exponentiation of array a with public base b (scalar)."""
     if b != 2:
         # Convert to base 2, using b^a = 2^(a log_2 b):
-        log2b = math.log2(b)
-        a *= log2b
-        lower_bound *= log2b
-    return np_exp2(a, lower_bound)
+        a *= math.log2(b)
+    return np_exp2(a)
 
 
-def np_exp(a, lower_bound):
+def np_exp(a):
     """Secure elementwise (natural) exponential function of a."""
-    return np_pow(math.e, a, lower_bound)
+    return np_pow(math.e, a)
