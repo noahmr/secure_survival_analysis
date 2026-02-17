@@ -27,6 +27,8 @@ async def main():
                         help='number of samples in synthetic data (default=20)')
     parser.add_argument('-t', '--iterations', type=int, metavar='T',
                         help='maximum number of iterations (default=15)')
+    parser.add_argument('--concordance_index', action='store_true',
+                        help='perform concordance test')
     parser.set_defaults(dataset=0, bit_length=40, samples=20, method=2, alpha=1, iterations=15)
     args = parser.parse_args()
 
@@ -56,6 +58,12 @@ async def main():
     likelihoods = await mpc.output(likelihoods)
     print('likelihoods: ', likelihoods)
 
+    await mpc.shutdown()
+
+    if not args.concordance_index:
+        return 
+        
+    await mpc.start()
     logging.info(f'Reading dataset of {num_records} records')
     synthetic = pd.read_csv('synthetic_hazards10000.csv')[:num_records]
     # Extract 'time', 'hazards' and 'status' columns

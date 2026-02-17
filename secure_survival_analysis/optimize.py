@@ -60,11 +60,12 @@ async def gradient_descent(f, f_grad, beta0, alpha, num_iterations, tolerance=0.
     Minimizer beta, list of function values of each iteration
 
     """
+    logging.info("bfgs(): starting gradient_descent algorithm")
     beta = beta0
     for i in range(num_iterations):
-        logging.info(f"gradient_descent(): iteration {i}")
+        logging.info(f'iteration {i}')
         grad = f_grad(beta)
-        beta = beta - alpha * grad  # gradient descent step
+        beta -= alpha * grad  # gradient descent step
         if await mpc.output(grad @ grad < tolerance**2):
             break
 
@@ -109,18 +110,15 @@ async def bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005):
     # Explicitly dampen the first step, since the gradient is typically very large.
     # The bfgs steps are damped in a different manner.
     w = grad / norm(grad)
-    beta_prev = beta
-    beta = beta - alpha * w  # bfgs step
+    s_i = -alpha * w 
+    beta += s_i  # bfgs step
     await mpc.barrier(f"gradient descent step")
 
     for i in range(1, num_iterations):
-        logging.info(f"bfgs(): {i}")
+        logging.info(f'iteration {i}')
         grad_prev = grad
         grad = f_grad(beta)
-        s_i = beta - beta_prev
         y_i = grad - grad_prev
-
-        logging.info("--- bfgs step")
         rho_i = 1 / (y_i @ s_i)
         if i == 1:
             gamma = 1 / (rho_i * (y_i @ y_i))
@@ -130,8 +128,8 @@ async def bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005):
         C = np.outer(r, s_i)  # rho_i s_i s_i^T
         H = A @ H @ A.T + C  # update Hessian
         w = H @ grad
-        beta_prev = beta
-        beta = beta - alpha * w  # bfgs step
+        s_i = -alpha * w 
+        beta += s_i  # bfgs step
         if await mpc.output(w @ w < tolerance**2):
             break
 
@@ -224,15 +222,14 @@ async def lbfgs(f, f_grad, beta0, alpha, num_iterations, m, tolerance=0.005):
     # Explicitly dampen the first step, since the first gradient is typically very large.
     # The l-bfgs steps are damped in a different manner.
     w = grad / norm(grad)  # NB: norm = 1
-    beta_prev = beta
-    beta = beta - alpha * w  # l-bfgs step
+    s_i = -alpha * w 
+    beta += s_i  # l-bfgs step
     await mpc.barrier(f"gradient descent step")
 
     for i in range(1, num_iterations):
-        logging.info(f"lbfgs(): iteration {i}")
+        logging.info(f'iteration {i}')
         grad_prev = grad
         grad = f_grad(beta)
-        s_i = beta - beta_prev
         y_i = grad - grad_prev
         rho_i = 1 / (y_i @ s_i)
         s.append(s_i)
@@ -243,10 +240,9 @@ async def lbfgs(f, f_grad, beta0, alpha, num_iterations, m, tolerance=0.005):
             y.pop(0)
             rho.pop(0)
 
-        logging.info("--- l-bfgs step")
         w = two_loop_recursion(s, y, rho, grad)
-        beta_prev = beta
-        beta = beta - alpha * w  # l-bfgs step
+        s_i = -alpha * w 
+        beta += s_i  # l-bfgs step
         if await mpc.output(w @ w < tolerance**2):
             break
 

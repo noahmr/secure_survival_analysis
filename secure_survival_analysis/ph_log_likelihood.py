@@ -32,8 +32,8 @@ IN THE SOFTWARE.
 import numpy as np
 from mpyc.runtime import mpc
 from secure_survival_analysis.aggregation import group_propagate_right, group_sum
-from secure_survival_analysis import np_logarithm
-from secure_survival_analysis import np_pow
+from secure_survival_analysis.np_logarithm import np_log
+from secure_survival_analysis.np_pow import np_exp
 
 
 def negative_log_likelihood(beta, X, delta, grouping, ld):
@@ -41,53 +41,23 @@ def negative_log_likelihood(beta, X, delta, grouping, ld):
 
     It is assumed that the samples are already sorted on survival times.
 
-    Parameters
-    ----------
-    beta : array
-        model parameters
-    X : array
-        covariates
-    delta : array
-        censoring indicator
-    grouping : array
-        grouping indexing array of bits
-    ld : array
-        for each non-censored subject, the subject index divided by the total size of the group for
+    beta : model parameters
+    X : covariates
+    delta: censoring indicator
+    grouping: grouping indexing array of bits
+    ld : for each non-censored subject, the subject index divided by the total size of the group for
         that survival time
-
-    Returns
-    ------
-    Negative log-likelihood (fixed point)
-
     """
-
-    # Total number of records
-    N = len(X)
-    assert (len(delta) == N) and (len(grouping) == N) and (len(ld) == N)
-    assert len(X[0]) == len(beta)
-
-    # Compute the inner products (beta, x_j), and the powers e^(beta, x_j) for all j
-    #
-    # All can be done in parallel
-    #
-    w = mpc.np_matmul(X, beta)
-    e = np_pow.np_exp(w, -7)
-
-    # Compute the at-risk sums for each subject. This is a local operation
-    r = mpc.np_flip(mpc.np_cumsum(mpc.np_flip(e)))
+    w = X @ beta                        # inner products <beta, x_j> for all j
+    e = np_exp(w, -7)                   # e^<beta, x_j>
+    r = np.flip(np.cumsum(np.flip(e)))  # at-risk sums for each subject
 
     # Compute the at-risk sums for each subject taking into account the groups
     r_hat = group_propagate_right(r, grouping)
+    u = group_sum(delta * e, grouping)  # exponent sums for each group
 
-    # Compute the exponent sums for each group
-    u = group_sum(delta * e, grouping)
-
-    # Compute the logarithms
-    s = np_logarithm.np_log(r_hat - ld * u)
-
-    # Result: one inner product
-    q = mpc.np_matmul(delta, w - s)
-    return -q
+    s = np_log(r_hat - ld * u)
+    return delta @ (s - w)
 
 
 def negative_log_likelihood_gradient(beta, X, delta, grouping, ld):
@@ -95,57 +65,30 @@ def negative_log_likelihood_gradient(beta, X, delta, grouping, ld):
 
     It is assumed that the samples are already sorted on survival times.
 
-    Parameters
-    ----------
-    beta : array
-        model parameters
-    X : array
-        covariates
-    delta : array
-        censoring indicator
-    grouping : array
-        grouping indexing array of bits
-    ld : array
-        for each non-censored subject, the subject index divided by the total size of the group for
+    beta : model parameters
+    X : covariates
+    delta: censoring indicator
+    grouping: grouping indexing array of bits
+    ld : for each non-censored subject, the subject index divided by the total size of the group for
         that survival time
-
-    Returns
-    ------
-    Gradient of negative log-likelihood (fixed point)
-
     """
-
-    # Total number of records
-    N = len(X)
-    assert (len(delta) == N) and (len(grouping) == N) and (len(ld) == N)
-    assert len(X[0]) == len(beta)
-
-    # Compute the inner products (beta, x_j), the powers e^(beta, x_j)
-    # as well as x_j * e^(beta, x_j) for all j
-    #
-    # All can be done in parallel
-    #
-    w = mpc.np_matmul(X, beta)
-    e = np_pow.np_exp(w, -7)
+    # shapes: X (n,d) beta (d,) delta, grouping, ld (n,)
+    w = X @ beta              # inner products <beta, x_j> for all j
+    e = np_exp(w, -7)         # e^<beta, x_j>
     c = e[:, np.newaxis] * X  # row-wise product
 
     # Compute the at-risk sums for each subject. This is a local operation
-    r = mpc.np_flip(mpc.np_cumsum(mpc.np_flip(e)))
-    v = mpc.np_flip(mpc.np_cumsum(mpc.np_flip(c, axis=0), axis=0), axis=0)
+    r = np.flip(np.cumsum(np.flip(e)))  # at-risk sums for each subject
+    v = np.flip(np.cumsum(np.flip(c, axis=0), axis=0), axis=0)
 
     # Compute the at-risk sums for each subject taking into account the groups
     r_hat = group_propagate_right(r, grouping)
-    # Compute the exponent sums for each group
-    u = group_sum(delta * e, grouping)
+    u = group_sum(delta * e, grouping)  # exponent sums for each group
 
     # Compute at-risk sums and exponent sums for each group, column by column
     v_hat = group_propagate_right(v, grouping)
     h = group_sum(delta[:, np.newaxis] * c, grouping)
 
     # Perform the divisions
-    rec = 1 / (r_hat - ld * u)
-    s = mpc.np_multiply(v_hat - ld[:, np.newaxis] * h, rec[:, np.newaxis])
-
-    # Result: matrix product
-    q = mpc.np_matmul(delta, X - s)
-    return -q
+    s = (v_hat - ld[:, np.newaxis] * h) / (r_hat - ld * u)[:, np.newaxis]
+    return delta @ (s - X)
