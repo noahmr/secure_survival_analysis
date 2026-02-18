@@ -58,12 +58,11 @@ def mark_differences(values):
 
     # Create group indexing array by determining when new groups start, i.e.
     # when the value changes
-    diff = (values[1:] != values[:-1])
+    diff = values[1:] != values[:-1]
 
     # The first value always marks the start of a group
     one = ttype(np.array([1]))
-    b = mpc.np_concatenate((one, diff))
-
+    b = np.concatenate((one, diff))
     return b
 
 
@@ -144,21 +143,20 @@ def selective_sum(values, grouping):
 
     # TODO: handle arbitrary axis to sum over, in the same way numpy functions do
 
-    assert (len(values) == len(grouping))
+    assert len(values) == len(grouping)
 
     # Selective sum operator
     ssum_op = selective_operator(operator.add)
 
     # Combine into a single matrix values|grouping
-    reshaped = mpc.np_reshape(values, (len(values), -1))
-    combined = mpc.np_concatenate((reshaped, grouping[:, np.newaxis]), axis=1)
+    combined = np.concatenate((values.reshape((len(values), -1)), grouping[:, np.newaxis]), axis=1)
 
     # Prefix-OP; Note: the result is an iterator of secure arrays (of length 2 each)
-    prefix_result = mpc.np_vstack(list(mpctools.accumulate(combined, ssum_op, method='Brent-Kung')))
+    prefix_result = np.vstack(tuple(mpctools.accumulate(combined, ssum_op, method='Brent-Kung')))
     # TODO: use numpy function for this? E.g. np_accumulate
 
     # Select all except for the last entry (which has the indicator bits)
-    return mpc.np_reshape(prefix_result[:, :-1], values.shape)
+    return np.reshape(prefix_result[:, :-1], values.shape)
 
 
 def group_propagate(values, grouping):
@@ -177,14 +175,14 @@ def group_propagate(values, grouping):
     array of same length as inputs, containing the combined value within each group
     """
 
-    assert (len(values) == len(grouping))
-    assert (values.ndim <= 2)
-    assert (grouping.ndim == 1)
+    assert len(values) == len(grouping)
+    assert values.ndim <= 2
+    assert grouping.ndim == 1
 
     ttype = type(grouping)
 
     # Shift to the left once and insert a 1 at the end
-    grouping_shifted = mpc.np_concatenate((grouping[1:], ttype(np.array([1]))))
+    grouping_shifted = np.roll(grouping, -1)
 
     # Ensure grouping array can be multiplied row-wise with values
     if values.ndim == 2:
@@ -197,8 +195,8 @@ def group_propagate(values, grouping):
     u = grouping_reshaped * values
 
     # Selective sum to propagate last value of each group to the rest of the group
-    r = selective_sum(mpc.np_flip(u, axis=0), mpc.np_flip(grouping_shifted, axis=0))
-    return mpc.np_flip(r, axis=0)  # Flip the results again
+    r = np.flip(selective_sum(np.flip(u, axis=0), np.flip(grouping_shifted, axis=0)),axis=0)  
+    return r
 
 
 def group_propagate_right(values, grouping):
@@ -218,9 +216,9 @@ def group_propagate_right(values, grouping):
     array of same length as inputs, containing the combined value within each group
     """
 
-    assert (len(values) == len(grouping))
-    assert (values.ndim <= 2)
-    assert (grouping.ndim == 1)
+    assert len(values) == len(grouping)
+    assert values.ndim <= 2
+    assert grouping.ndim == 1
 
     # Ensure grouping array can be multiplied row-wise with values
     if values.ndim == 2:
@@ -238,7 +236,7 @@ def group_propagate_right(values, grouping):
 
 
 def _group_sum(values, grouping):
-    assert (len(values) == len(grouping))
+    assert len(values) == len(grouping)
 
     # Selective-sum within each group; The sum per group is then stored at the end of each group
     u = selective_sum(values, grouping)
@@ -265,9 +263,7 @@ def group_sum(values, grouping):
     ------
     array of same length as inputs, containing the combined value within each group
     """
-
-    r, _ = _group_sum(values, grouping)
-    return r
+    return _group_sum(values, grouping)[0]
 
 
 class comparable_bit:
@@ -302,9 +298,9 @@ def extract_aggregates(values, grouping):
     with the remaining values as zeros.
     """
 
-    assert (len(values) == len(grouping))
-    assert (values.ndim <= 2)
-    assert (grouping.ndim == 1)
+    assert len(values) == len(grouping)
+    assert values.ndim <= 2
+    assert grouping.ndim == 1
 
     # Ensure grouping array can be multiplied row-wise with values
     if values.ndim == 2:
@@ -316,11 +312,11 @@ def extract_aggregates(values, grouping):
     # Apply the grouping as a mask to the values
     u = grouping_reshaped * values
 
-    u_reshaped = mpc.np_reshape(u, (len(u), -1))
-    grouping_reshaped = mpc.np_reshape(grouping_reshaped, (len(grouping_reshaped), -1))
+    u_reshaped = np.reshape(u, (len(u), -1))
+    grouping_reshaped = np.reshape(grouping_reshaped, (len(grouping_reshaped), -1))
 
     # Sort based on the group indicator bits
-    tab = mpc.np_concatenate((grouping_reshaped, u_reshaped), axis=1)
+    tab = np.concatenate((grouping_reshaped, u_reshaped), axis=1)
     w = mpc.np_sort(tab, axis=0, key=lambda v: comparable_bit(v[0]))
 
     # Return just the values
@@ -341,22 +337,21 @@ def group_count(grouping):
     array of same length as inputs, containing the group sizes within each group
     """
 
-    assert (grouping.ndim == 1)
+    assert grouping.ndim == 1
 
     n = len(grouping)
     array_type = type(grouping)
 
     # Assign indices, and append n+1 at the end
-    w_ = grouping * np.arange(1, n+1)
-    w = mpc.np_concatenate((w_, array_type(np.array([n+1]))))
+    w = grouping * np.arange(1, n+1)
+    w = np.concatenate((w, array_type(np.array([n+1]))))
 
     # Propagate indices to group boundaries
-    g_prime = mpc.np_concatenate((grouping, array_type(np.array([1]))))
-    u_ = selective_sum(mpc.np_flip(w), mpc.np_flip(g_prime))
-    u = mpc.np_flip(u_)
+    g_prime = np.concatenate((grouping, array_type(np.array([1]))))
+    u = np.flip(selective_sum(np.flip(w), np.flip(g_prime)))
 
     # Compute group sizes through successive differences
-    t = (u[1:] - u[:-1])
+    t = u[1:] - u[:-1]
 
     # Selective sum to propagate first value in each group to the rest of the group
     r = selective_sum(t, grouping)
