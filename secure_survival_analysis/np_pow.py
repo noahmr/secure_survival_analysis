@@ -75,49 +75,30 @@ async def np_pow_integer_exponent(b, a):
     ttype = type(a)
     await mpc.returnType((ttype, True, a.shape))
 
-    if not isinstance(a, mpc.SecureIntegerArray):
-        l = a.sectype.bit_length
-        f = a.sectype.frac_length
-        secint = mpc.SecInt(l=l-f, p=a.sectype.field.modulus)
-        a = await mpc.gather(a)
-        a = secint.array(a.value)  # convert from secfxp to secint
-        ttype = type(a)
     modulus = a.sectype.field.modulus
     m = len(mpc.parties)
     k = mpc.options.sec_param
     l = a.sectype.bit_length
-    assert modulus//m > 1<<(l + k)
-
-    ### Step 1: generate the random pair [r], [b^{-r}]
+    f = a.sectype.frac_length
 
     # Let each party locally generate a random number r_i
-    upper = 1<<(l + k) // m
-    r_i = np.array([secrets.randbelow(upper) for _ in range(0, len(a))], dtype=object)
-
-    # Secret-share with the other parties, and sum to obtain r
-    r_summands = mpc.np_stack(mpc.input(ttype(r_i)), axis=0)
-    r = mpc.np_sum(r_summands, axis=0)
-
+    bound = 1<<(l + k) // m
+    r = np.array([secrets.randbelow(bound) for _ in range(len(a))], dtype='O')
     # Locally compute b^{-r_i} at each party
-    b_pow_r_i_inverse = gmpy2.powmod_exp_list(b, -r_i, modulus)
-    b_pow_r_i_inverse = np.vectorize(int, otypes='O')(b_pow_r_i_inverse)
+    b_pow_r = gmpy2.powmod_exp_list(b, -r, modulus)
+    b_pow_r = np.vectorize(int, otypes='O')(b_pow_r)
 
-    # Secret-share b^{-r_i} with the other parties, and multiply to obtain b^{-r}
-    b_pow_r_inverse = mpc.np_stack(mpc.input(ttype(b_pow_r_i_inverse)), axis=0)
-    b_pow_r_inverse = mpc.np_prod(b_pow_r_inverse, axis=0)
+    r_1 = np.stack(mpc.input(ttype(np.vstack((r, b_pow_r)))))
+    r = np.sum(r_1[:, 0], axis=0)
+    b_pow_r = np.prod(r_1[:, 1], axis=0)  # b^-r
+    del r_1
 
-    ### Step 2: open a + r to all parties, and compute b^{a + r} locally
-    c = await mpc.output(a + r)
-#    c = c % modulus  # ensure c > 0
-#    c = await mpc.output(a + r, raw=True)
-#    c = c.value ## % modulus  # ensure c > 0
-    b_pow_a_r = gmpy2.powmod_exp_list(b, c, modulus)
+    c = await mpc.output(a + r, raw=True)
+    c = c.value >> f
+    b_pow_a_r = gmpy2.powmod_exp_list(b, c, modulus)  # b^(a+r)
     b_pow_a_r = np.vectorize(int, otypes='O')(b_pow_a_r)
-
-    ### Step 3: extract the result b^a by multiplying with [b^{-r}]
-    b_pow_e = b_pow_a_r * b_pow_r_inverse
-    b_pow_e = await mpc.gather(b_pow_e)
-    return b_pow_e * b**f
+    b_pow_a_r *= 2**f
+    return b_pow_a_r * b_pow_r
 
 
 def np_exp2(a):
@@ -129,13 +110,14 @@ def np_exp2(a):
     # Therefore log_2 a < log_2(l-1 - f), which gives an upper bound on the bit length of a.
     a_max_bitlength = f + (l-1 - f).bit_length() + 1
     a_int = mpc.np_trunc(a, l=a_max_bitlength, f=f)  # integral part of a
-    a_frac = a - a_int * 2**f                        # fractional part of a
-    a_pow_frac = np_exp2_taylor(a_frac)  # 2^a_frac
-    a_int += 2**(l-1-f-f)  # extra -f as this integer is multiplied by 2^f before addition to a_int
-    a_pow_int = np_pow_integer_exponent(2, a_int)  # 2^a_int, nonnegative a_int
-    a_pow_int /= a.sectype.field(2)**(1<<(l-1-f))
-    a_pow = a_pow_frac * a_pow_int  # 2^a = 2^a_frac * 2^a_int
-    return a_pow
+    a_int *= 1<<f
+    a_frac = a - a_int
+    a_pow = np_exp2_taylor(a_frac)  # 2^a_frac
+    a_int += 2**(l-1-f)  # ensure nonnegative a_int
+    a_int.integral = True
+    a_pow *= np_pow_integer_exponent(2, a_int)  # 2^a_int
+    a_pow /= a.sectype.field(2)**(1<<(l-1-f))
+    return a_pow  # 2^a
 
 
 def np_pow(b, a):
