@@ -146,7 +146,8 @@ def selective_sum(values, grouping):
     assert len(values) == len(grouping)
 
     # Selective sum operator
-    ssum_op = selective_operator(operator.add)
+#    ssum_op = selective_operator(operator.add)
+    ssum_op = lambda t1, t2: (1 - t2[-1])*t1 + t2
 
     # Combine into a single matrix values|grouping
     combined = np.concatenate((values.reshape((len(values), -1)), grouping[:, np.newaxis]), axis=1)
@@ -195,7 +196,7 @@ def group_propagate(values, grouping):
     u = grouping_reshaped * values
 
     # Selective sum to propagate last value of each group to the rest of the group
-    r = np.flip(selective_sum(np.flip(u, axis=0), np.flip(grouping_shifted, axis=0)),axis=0)  
+    r = np.flip(selective_sum(np.flip(u, axis=0), np.flip(grouping_shifted, axis=0)), axis=0)
     return r
 
 
@@ -356,3 +357,24 @@ def group_count(grouping):
     # Selective sum to propagate first value in each group to the rest of the group
     r = selective_sum(t, grouping)
     return r
+
+
+def group_propagate_right_group_sum(values1, values2, grouping):
+    """Combine group_propagate_right(values1) and group_sum(values2)."""
+    u = (grouping * values1.T).T
+
+    u_values2 = np.column_stack((u, values2))
+    R_u = selective_sum(u_values2, grouping)
+    if u.ndim == 1:
+        R, u = R_u[:, 0], R_u[:, 1]
+    else:
+        D = R_u.shape[1]
+        R, u = R_u[:, :D//2], R_u[:, D//2:]
+
+    # Shift to the left once and insert a 1 at the end
+    grouping_shifted = np.roll(grouping, -1)
+
+    # Selective sum to propagate last value of each group to the rest of the group
+    r = np.flip(selective_sum(np.flip(u, axis=0), np.flip(grouping_shifted, axis=0)), axis=0)
+
+    return R, r

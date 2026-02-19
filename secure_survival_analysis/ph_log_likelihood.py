@@ -31,7 +31,7 @@ IN THE SOFTWARE.
 
 import numpy as np
 from mpyc.runtime import mpc
-from secure_survival_analysis.aggregation import group_propagate_right, group_sum
+from secure_survival_analysis.aggregation import group_propagate_right_group_sum
 from secure_survival_analysis.np_logarithm import np_log
 from secure_survival_analysis.np_pow import np_exp
 
@@ -52,9 +52,8 @@ def negative_log_likelihood(beta, X, delta, grouping, ld):
     e = np_exp(w)                       # e^<beta, x_j>
     r = np.flip(np.cumsum(np.flip(e)))  # at-risk sums for each subject
 
-    # Compute the at-risk sums for each subject taking into account the groups
-    r_hat = group_propagate_right(r, grouping)
-    u = group_sum(delta * e, grouping)  # exponent sums for each group
+    # Compute the at-risk / exponent sums for each subject taking into account the groups
+    r_hat, u = group_propagate_right_group_sum(r, delta * e, grouping)
 
     s = np_log(r_hat - ld * u)
     return delta @ (s - w)
@@ -75,16 +74,15 @@ def negative_log_likelihood_gradient(beta, X, delta, grouping, ld):
     # shapes: X (n,d) beta (d,) delta, grouping, ld (n,)
     w = X @ beta              # inner products <beta, x_j> for all j
     e = np_exp(w)             # e^<beta, x_j>
-    e = e[:, np.newaxis] 
+    e = e[:, np.newaxis]
     c = e * X  # row-wise product
     e_c = np.hstack((e, c))
 
     # Compute the at-risk sums for each subject. This is a local operation
     r_v = np.flip(np.cumsum(np.flip(e_c, axis=0), axis=0), axis=0)
 
-    # Compute at-risk sums and exponent sums for each group, column by column
-    r_v_hat = group_propagate_right(r_v, grouping)
-    u_h = group_sum(delta[:, np.newaxis] * e_c, grouping)
+    # Compute at-risk / exponent sums for each subject taking into account the groups, col by col
+    r_v_hat, u_h = group_propagate_right_group_sum(r_v, delta[:, np.newaxis] * e_c, grouping)
 
     s = r_v_hat - ld[:, np.newaxis] * u_h
     s = s[:, 1:] / s[:, :1]  # perform the divisions
