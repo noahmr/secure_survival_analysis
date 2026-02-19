@@ -49,7 +49,7 @@ def negative_log_likelihood(beta, X, delta, grouping, ld):
         that survival time
     """
     w = X @ beta                        # inner products <beta, x_j> for all j
-    e = np_exp(w)                   # e^<beta, x_j>
+    e = np_exp(w)                       # e^<beta, x_j>
     r = np.flip(np.cumsum(np.flip(e)))  # at-risk sums for each subject
 
     # Compute the at-risk sums for each subject taking into account the groups
@@ -74,21 +74,18 @@ def negative_log_likelihood_gradient(beta, X, delta, grouping, ld):
     """
     # shapes: X (n,d) beta (d,) delta, grouping, ld (n,)
     w = X @ beta              # inner products <beta, x_j> for all j
-    e = np_exp(w)         # e^<beta, x_j>
-    c = e[:, np.newaxis] * X  # row-wise product
+    e = np_exp(w)             # e^<beta, x_j>
+    e = e[:, np.newaxis] 
+    c = e * X  # row-wise product
+    e_c = np.hstack((e, c))
 
     # Compute the at-risk sums for each subject. This is a local operation
-    r = np.flip(np.cumsum(np.flip(e)))  # at-risk sums for each subject
-    v = np.flip(np.cumsum(np.flip(c, axis=0), axis=0), axis=0)
-
-    # Compute the at-risk sums for each subject taking into account the groups
-    r_hat = group_propagate_right(r, grouping)
-    u = group_sum(delta * e, grouping)  # exponent sums for each group
+    r_v = np.flip(np.cumsum(np.flip(e_c, axis=0), axis=0), axis=0)
 
     # Compute at-risk sums and exponent sums for each group, column by column
-    v_hat = group_propagate_right(v, grouping)
-    h = group_sum(delta[:, np.newaxis] * c, grouping)
+    r_v_hat = group_propagate_right(r_v, grouping)
+    u_h = group_sum(delta[:, np.newaxis] * e_c, grouping)
 
-    # Perform the divisions
-    s = (v_hat - ld[:, np.newaxis] * h) / (r_hat - ld * u)[:, np.newaxis]
+    s = r_v_hat - ld[:, np.newaxis] * u_h
+    s = s[:, 1:] / s[:, :1]  # perform the divisions
     return delta @ (s - X)
