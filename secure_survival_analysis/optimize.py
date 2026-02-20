@@ -228,6 +228,7 @@ async def lbfgs(f, f_grad, beta0, alpha, num_iterations, m, tolerance=0.005):
 
     for i in range(1, num_iterations):
         logging.info(f'iteration {i}')
+        mpc.peek(beta, "beta")
         grad_prev = grad
         grad = f_grad(beta)
         y_i = grad - grad_prev

@@ -66,7 +66,7 @@ def mark_differences(values):
     return b
 
 
-def group_values(table, sort_column, group_column):
+def group_values(table, sort_column=0, group_column=0):
     """
     Sort and create the grouping indexing array for a list of secret shared values
 

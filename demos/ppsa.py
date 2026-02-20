@@ -27,9 +27,11 @@ async def main():
                         help='number of samples in synthetic data (default=20)')
     parser.add_argument('-t', '--iterations', type=int, metavar='T',
                         help='maximum number of iterations (default=15)')
+    parser.add_argument('-s', '--sort_column', type=int, metavar='S',
+                        help='index of time column, default 0, -1 for no secure sort')
     parser.add_argument('--concordance_index', action='store_true',
                         help='perform concordance test')
-    parser.set_defaults(dataset=0, bit_length=40, samples=20, method=2, alpha=1, iterations=15)
+    parser.set_defaults(dataset=0, bit_length=40, samples=20, method=2, alpha=1, iterations=15, sort_column=0)
     args = parser.parse_args()
 
     num_records = args.samples
@@ -38,21 +40,40 @@ async def main():
 
     await mpc.start()
 
-    # Read dataset
-    logging.info(f'Reading dataset of {num_records} records')
-    synthetic = pd.read_csv('synthetic_hazards10000.csv')[:num_records]
-    synthetic.pop('hazards')
-    # Move 'time' and 'status' to the front
-    synthetic.insert(0, 'time', synthetic.pop('time'))
-    synthetic.insert(1, 'status', synthetic.pop('status'))
-    synthetic = synthetic.to_numpy()
+    if num_records <= 10000:
+        # Read dataset
+        logging.info(f'Reading dataset of {num_records} records')
+        synthetic = pd.read_csv('synthetic_hazards10000.csv')[:num_records]
+        synthetic.pop('hazards')
+        # Move 'time' and 'status' to the front
+        synthetic.insert(0, 'time', synthetic.pop('time'))
+        synthetic.insert(1, 'status', synthetic.pop('status'))
+        synthetic = synthetic.to_numpy()
+    else:
+        from generate_data import generate_survival_sample
+        beta = [0.02, 0.9, 0.6, 0.03, 0.8]
+
+        # The values 30, 2, 50 and 10 are the parameters associated with the Weibull and
+        # exponential distribution. These were chosen as to generate datasets with a
+        # significant number of censored subjects, along with introducing many tied event
+        # times in order to demonstrate the accuracy of the methods in handling these.
+        #
+        # Different values can be chosen to simulate different settings.
+        synthetic, t, status = generate_survival_sample(30, 2, 50, 10, num_records, beta)
+        synthetic = np.column_stack((t, status, synthetic))
+
+    if args.sort_column == -1:
+        logging.info(f'Sorting in the clear')
+        synthetic = pd.DataFrame(synthetic)
+        synthetic = synthetic.sort_values(by=[0])
+        synthetic = synthetic.to_numpy()
 
     # Share dataset with other parties
     logging.info('Sharing dataset among parties')
     synthetic = mpc.input(secfxp.array(synthetic), senders=0)
 
     # Fit model
-    beta, likelihoods, _ = await model_fit.fit_proportional_hazards_model(synthetic, method=method, alpha=args.alpha, num_iterations=args.iterations)
+    beta, likelihoods, _ = await model_fit.fit_proportional_hazards_model(synthetic, method=method, alpha=args.alpha, num_iterations=args.iterations, sort_column=args.sort_column)
     beta = await mpc.output(beta)
     print('beta: ', beta)
     likelihoods = await mpc.output(likelihoods)
@@ -60,7 +81,7 @@ async def main():
 
     await mpc.shutdown()
 
-    if not args.concordance_index:
+    if num_records > 10000 or not args.concordance_index:
         return 
         
     await mpc.start()

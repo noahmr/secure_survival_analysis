@@ -37,7 +37,7 @@ from secure_survival_analysis.aggregation import group_values, _group_sum
 from secure_survival_analysis.optimize import gradient_descent, bfgs, lbfgs
 
 
-async def fit_proportional_hazards_model(table, method='l-bfgs', alpha=1, num_iterations=10, tolerance=0.005):
+async def fit_proportional_hazards_model(table, method='l-bfgs', alpha=1, num_iterations=10, tolerance=0.005, sort_column=0):
     """Fit the proportional hazards model
 
     Parameters
@@ -64,7 +64,7 @@ async def fit_proportional_hazards_model(table, method='l-bfgs', alpha=1, num_it
 
     # Sort and group on survival time
     logging.info("fit_proportional_hazards_model(): grouping values")
-    X_sorted, grouping = group_values(table, group_column=0, sort_column=0)
+    X_sorted, grouping = group_values(table, sort_column=sort_column, group_column=0)
 
     # Separate the status
     delta_sorted = X_sorted[:, 1]
