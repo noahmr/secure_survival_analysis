@@ -373,6 +373,7 @@ def group_propagate_right_group_sum(values1, values2, grouping):
 
     # Shift to the left once and insert a 1 at the end
     grouping_shifted = np.roll(grouping, -1)
+    u = (grouping_shifted * values1.T).T
 
     # Selective sum to propagate last value of each group to the rest of the group
     r = np.flip(selective_sum(np.flip(u, axis=0), np.flip(grouping_shifted, axis=0)), axis=0)
