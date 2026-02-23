@@ -31,7 +31,7 @@ IN THE SOFTWARE.
 
 import numpy as np
 from mpyc.runtime import mpc
-from secure_survival_analysis.aggregation import group_propagate_right_group_sum
+from secure_survival_analysis.aggregation import group_sum
 from secure_survival_analysis.np_logarithm import np_log
 from secure_survival_analysis.np_pow import np_exp
 
@@ -46,16 +46,17 @@ def negative_log_likelihood(beta, X, delta, grouping, ld):
     delta: censoring indicator
     grouping: grouping indexing array of bits
     ld : for each non-censored subject, the subject index divided by the total size of the group for
-        that survival time
+        that survival time, including factor delta
     """
     w = X @ beta                        # inner products <beta, x_j> for all j
     e = np_exp(w)                       # e^<beta, x_j>
     r = np.flip(np.cumsum(np.flip(e)))  # at-risk sums for each subject
 
     # Compute the at-risk / exponent sums for each subject taking into account the groups
-    r_hat, u = group_propagate_right_group_sum(r, delta * e, grouping)
+    u = grouping * r - ld * e
+    s = group_sum(u, grouping)
 
-    s = np_log(r_hat - ld * u)
+    s = np_log(s)
     return delta @ (s - w)
 
 
@@ -69,7 +70,7 @@ def negative_log_likelihood_gradient(beta, X, delta, grouping, ld):
     delta: censoring indicator
     grouping: grouping indexing array of bits
     ld : for each non-censored subject, the subject index divided by the total size of the group for
-        that survival time
+        that survival time, including factor delta
     """
     # shapes: X (n,d) beta (d,) delta, grouping, ld (n,)
     w = X @ beta              # inner products <beta, x_j> for all j
@@ -82,8 +83,8 @@ def negative_log_likelihood_gradient(beta, X, delta, grouping, ld):
     r_v = np.flip(np.cumsum(np.flip(e_c, axis=0), axis=0), axis=0)
 
     # Compute at-risk / exponent sums for each subject taking into account the groups, col by col
-    r_v_hat, u_h = group_propagate_right_group_sum(r_v, delta[:, np.newaxis] * e_c, grouping)
+    u = (grouping * r_v.T).T - ld[:, np.newaxis] * e_c
+    s = group_sum(u, grouping)
 
-    s = r_v_hat - ld[:, np.newaxis] * u_h
     s = s[:, 1:] / s[:, :1]  # perform the divisions
     return delta @ (s - X)
