@@ -146,8 +146,7 @@ def selective_sum(values, grouping):
     assert len(values) == len(grouping)
 
     # Selective sum operator
-#    ssum_op = selective_operator(operator.add)
-    ssum_op = lambda t1, t2: (1 - t2[-1])*t1 + t2
+    ssum_op = lambda t1, t2: (1 - t2[-1])*t1 + t2  # NB: direct definition for efficiency
 
     # Combine into a single matrix values|grouping
     combined = np.concatenate((values.reshape((len(values), -1)), grouping[:, np.newaxis]), axis=1)
@@ -185,15 +184,8 @@ def group_propagate(values, grouping):
     # Shift to the left once and insert a 1 at the end
     grouping_shifted = np.roll(grouping, -1)
 
-    # Ensure grouping array can be multiplied row-wise with values
-    if values.ndim == 2:
-        grouping_reshaped = grouping_shifted[:, np.newaxis]
-    else:  # values.ndim == 1
-        grouping_reshaped = grouping_shifted
-    # TODO: can this be done in a cleaner way?
-
     # Apply the grouping as a mask to the values
-    u = grouping_reshaped * values
+    u = (grouping_shifted * values.T).T
 
     # Selective sum to propagate last value of each group to the rest of the group
     r = np.flip(selective_sum(np.flip(u, axis=0), np.flip(grouping_shifted, axis=0)), axis=0)
@@ -221,16 +213,9 @@ def group_propagate_right(values, grouping):
     assert values.ndim <= 2
     assert grouping.ndim == 1
 
-    # Ensure grouping array can be multiplied row-wise with values
-    if values.ndim == 2:
-        grouping_reshaped = grouping[:, np.newaxis]
-    else:  # values.ndim == 1
-        grouping_reshaped = grouping
-    # TODO: can this be done in a cleaner way?
-
     # Apply the grouping as a mask to the values
-    u = grouping_reshaped * values
-
+    u = (grouping * values.T).T
+    
     # Selective sum to propagate first value in each group to the rest of the group
     r = selective_sum(u, grouping)
     return r
@@ -276,7 +261,7 @@ class comparable_bit:
         self.bit = bit
 
     def __lt__(self, rhs):
-        return self.bit - self.bit * rhs.bit
+        return self.bit * (1 - rhs.bit)
 
 
 def extract_aggregates(values, grouping):
