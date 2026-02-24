@@ -37,6 +37,32 @@ def norm(a):
     return mpc.statistics._fsqrt(a @ a)
 
 
+def convert_to_secfxp(x, target_secfxp):
+    """Convert to a different secure fixed point representation
+
+    Parameters
+    ----------
+    x : secfxp.array
+        secret fixed point array
+    target_secfxp :
+        target secure fixed point type
+
+    Returns
+    ------
+    target_secfxp.array containing converted numbers
+
+    """
+
+    #target_secfxp = mpc.SecFxp(l, f)
+
+    lst = mpc.np_tolist(x)
+    # Note: mpc.np_convert() does not exist at this moment
+    r_ = mpc.convert(lst, target_secfxp)
+    r = mpc.np_fromlist(r_)
+
+    return r
+
+
 async def gradient_descent(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005):
     """Use gradient descent to minimize the objective function
 
@@ -140,7 +166,7 @@ async def bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005):
     return beta, likelihoods, H
 
 
-def two_loop_recursion(s, y, rho, grad):
+def two_loop_recursion(s, y, rho, grad, large_secfxp):
     """Use two-loop recursion to determine the l-bfgs optimization direction
 
     This is based on Algorithm 2.1 of:
@@ -163,7 +189,10 @@ def two_loop_recursion(s, y, rho, grad):
         history of rho values
     grad :
         gradient at current point
-
+    large_secfxp :
+        larger secfxp type for intermediate computations which might overflow/underflow
+        in the regular secfxp type
+        
     Returns
     ------
     Estimate of H^{-1} * grad, e.g. the l-bfgs direction
@@ -174,7 +203,16 @@ def two_loop_recursion(s, y, rho, grad):
     for j in range(l-1, -1, -1):
         a[j] = rho[j] * (s[j] @ w)
         w -= a[j] * y[j]
-    w *= (y[-1] @ s[-1]) / (y[-1] @ y[-1])  # NB: scale w using last y, s vectors
+    #w *= (y[-1] @ s[-1]) / (y[-1] @ y[-1])  # NB: scale w using last y, s vectors
+
+    y_i = convert_to_secfxp(y[-1], large_secfxp)
+    s_i = convert_to_secfxp(s[-1], large_secfxp)
+    gamma_ = mpc.np_matmul(y_i, s_i) / mpc.np_matmul(y_i, y_i)
+
+    w_ = convert_to_secfxp(w, large_secfxp)
+    w_ = gamma_ * w_
+    w = convert_to_secfxp(w_, type(w[0]))
+
     for j in range(l):
         b = rho[j] * (y[j] @ w)
         w += (a[j] - b) * s[j]
@@ -221,7 +259,19 @@ async def lbfgs(f, f_grad, beta0, alpha, num_iterations, m, tolerance=0.005):
 
     # Explicitly dampen the first step, since the first gradient is typically very large.
     # The l-bfgs steps are damped in a different manner.
-    w = grad / norm(grad)  # NB: norm = 1
+    #
+    # Since the values in 'grad' may be very large, this operation is performed
+    # in a larger fixed-point representation
+    secfxp = type(beta).sectype
+    large_secfxp = mpc.SecFxp(100, 50)
+
+    g_ = convert_to_secfxp(grad, large_secfxp)
+    gamma = 1 / norm(g_)
+    w_ = gamma * g_
+
+    w = convert_to_secfxp(w_, secfxp)
+    # w = grad / norm(grad)  # NB: norm = 1
+
     s_i = -alpha * w 
     beta += s_i  # l-bfgs step
     await mpc.barrier(f"gradient descent step")
@@ -241,7 +291,7 @@ async def lbfgs(f, f_grad, beta0, alpha, num_iterations, m, tolerance=0.005):
             y.pop(0)
             rho.pop(0)
 
-        w = two_loop_recursion(s, y, rho, grad)
+        w = two_loop_recursion(s, y, rho, grad, large_secfxp)
         s_i = -alpha * w 
         beta += s_i  # l-bfgs step
         if await mpc.output(w @ w < tolerance**2):
