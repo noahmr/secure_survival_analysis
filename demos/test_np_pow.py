@@ -73,7 +73,8 @@ async def main():
     start = time.time()
 
     # Compute powers
-    ex = np_pow.np_pow(base, v)
+#    ex = np_pow.np_pow(base, v)
+    ex = np_pow.np_exp(v)
     result = await mpc.output(ex)
 
     await mpc.barrier("computing results")

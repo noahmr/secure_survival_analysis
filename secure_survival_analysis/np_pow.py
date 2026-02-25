@@ -127,7 +127,22 @@ def np_pow(b, a):
         a *= math.log2(b)
     return np_exp2(a)
 
+def batch(ufunc, batch_size=4096):
 
+    @mpc.coroutine
+    async def batched_ufunc(a):  # TODO: generalize
+        await mpc.returnType((type(a), a.shape))
+        b = []
+        for i in range(0, a.size, batch_size):
+            b.append(ufunc(a[i: i+batch_size]))
+            await b[-1].share
+            mpc.peek(b[-1][0], f'await batch {i=} in {ufunc.__name__}')
+        return np.concatenate(b)
+
+    return batched_ufunc
+
+
+@batch
 def np_exp(a):
     """Secure elementwise (natural) exponential function of a."""
     return np_pow(math.e, a)
