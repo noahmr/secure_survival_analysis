@@ -66,6 +66,22 @@ def np_log2(a):
     return log2_b - k + f
 
 
+def batch(ufunc, batch_size=2048):
+
+    @mpc.coroutine
+    async def batched_ufunc(a):  # TODO: generalize
+        await mpc.returnType((type(a), a.shape))
+        b = []
+        for i in range(0, a.size, batch_size):
+            b.append(ufunc(a[i: i+batch_size]))
+            await b[-1].share
+            mpc.peek(b[-1][0], f'await batch {i=} in {ufunc.__name__}')
+        return np.concatenate(b)
+
+    return batched_ufunc
+
+
 def np_log(a):
     """Secure elementwise natural logarithm of a."""
     return np_log2(a) * math.log(2)
+
