@@ -80,7 +80,7 @@ def batch(ufunc, batch_size=2048):
 
     return batched_ufunc
 
-
+@batch
 def np_log(a):
     """Secure elementwise natural logarithm of a."""
     return np_log2(a) * math.log(2)
