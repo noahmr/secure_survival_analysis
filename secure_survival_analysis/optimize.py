@@ -263,7 +263,7 @@ async def lbfgs(f, f_grad, beta0, alpha, num_iterations, m, tolerance=0.005):
     # Since the values in 'grad' may be very large, this operation is performed
     # in a larger fixed-point representation
     secfxp = type(beta).sectype
-    large_secfxp = mpc.SecFxp(100, 50)
+    large_secfxp = mpc.SecFxp(2*secfxp.bit_length, 2*secfxp.frac_length)
 
     g_ = convert_to_secfxp(grad, large_secfxp)
     gamma = 1 / norm(g_)
