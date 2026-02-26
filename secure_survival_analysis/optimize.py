@@ -221,7 +221,10 @@ async def lbfgs(f, f_grad, beta0, alpha, num_iterations, m, tolerance=0.005):
 
     # Explicitly dampen the first step, since the first gradient is typically very large.
     # The l-bfgs steps are damped in a different manner.
-    w = grad / norm(grad)  # NB: norm = 1
+    gamma = 1 / norm(grad)
+    # If norm(grad) > 1, normalize to length 1.
+    w = ((gamma < 1) * (gamma - 1) + 1) * grad
+
     s_i = -alpha * w 
     beta += s_i  # l-bfgs step
     await mpc.barrier(f"gradient descent step")
