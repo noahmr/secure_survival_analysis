@@ -36,6 +36,41 @@ from secure_survival_analysis import ph_log_likelihood
 from secure_survival_analysis.aggregation import group_values, _group_sum
 from secure_survival_analysis.optimize import gradient_descent, bfgs, lbfgs
 
+def initial_point_heuristic_death_alive(X_sorted, delta_sorted):
+    """Heuristic: average of covariates of deaths (higher risk), minus average
+        of covariates of all subjects (average risk)
+    """
+
+    num_events = mpc.np_sum(delta_sorted)
+    avg_events = mpc.np_matmul(delta_sorted, X_sorted) / num_events
+    avg_all = mpc.np_sum(X_sorted, axis=0) / len(X_sorted)
+
+    beta0 = (avg_events - avg_all)
+    return beta0
+
+async def initial_point_heuristic_parts(X_sorted, delta_sorted, part_size):
+    """Heuristic: average of covariates of subjects that died earlier (higher risk),
+        minus average of covariates of subjects that died later (lower risk)
+
+        Size of each set is controlled by the 'part_size' parameter.
+    """
+
+    X_low = X_sorted[:part_size, :]
+    delta_low = delta_sorted[:part_size]
+    
+    events_low = mpc.np_sum(delta_low)
+    avg_low = mpc.np_matmul(delta_low, X_low) / events_low
+
+    X_high = X_sorted[-part_size:, :]
+    delta_high = delta_sorted[-part_size:]
+
+    events_high = mpc.np_sum(delta_high)
+    avg_high = mpc.np_matmul(delta_high, X_high) / events_high
+
+    print("average of early deaths: ", await mpc.output(avg_low))
+    print("average of late deaths: ", await mpc.output(avg_high))
+
+    return avg_low - avg_high
 
 async def fit_proportional_hazards_model(table, method='l-bfgs', alpha=1, num_iterations=10, tolerance=0.005, sort_column=0):
     """Fit the proportional hazards model
@@ -57,8 +92,6 @@ async def fit_proportional_hazards_model(table, method='l-bfgs', alpha=1, num_it
     ------
     Minimizer beta, log-likelihood at last iteration
     """
-
-    ttype = type(table)
 
     logging.info("###### Fitting proportional hazards model ######")
 
@@ -90,8 +123,16 @@ async def fit_proportional_hazards_model(table, method='l-bfgs', alpha=1, num_it
     def f_grad(b):
         return ph_log_likelihood.negative_log_likelihood_gradient(b, X_sorted, delta_sorted, grouping, ld)
 
-    num_features = len(X_sorted[0])
-    beta0 = ttype(np.array([np.float64(0)] * num_features))
+    #ttype = type(table)
+    #num_features = len(X_sorted[0])
+    #beta0 = ttype(np.array([np.float64(0)] * num_features))
+
+    #beta0 = initial_point_heuristic_death_alive(X_sorted, delta_sorted)
+    beta0 = await initial_point_heuristic_parts(X_sorted, delta_sorted, len(X_sorted) // 4)
+    print("beta0: ", await mpc.output(beta0))
+
+    # another heuristic: first fit on 1/10th of the dataset. Then use this as initial
+    # estimate for complete procedure.
 
     start = time.time()
 
