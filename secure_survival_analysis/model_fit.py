@@ -91,8 +91,8 @@ async def fit_proportional_hazards_model(table, method='l-bfgs', alpha=1, num_it
         return ph_log_likelihood.negative_log_likelihood_gradient(b, X_sorted, delta_sorted, grouping, ld)
 
     num_features = len(X_sorted[0])
-    beta0 = ttype(np.array([np.float64(0)] * num_features))
-
+#    beta0 = ttype(np.array([np.float64(0)] * num_features))
+    beta0 = np.array([np.float64(0)] * num_features)
     start = time.time()
 
     H = None
