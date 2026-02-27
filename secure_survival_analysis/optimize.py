@@ -262,7 +262,7 @@ async def lbfgs(f, f_grad, beta0, alpha, num_iterations, m, tolerance=0.005):
     #
     # Since the values in 'grad' may be very large, this operation is performed
     # in a larger fixed-point representation
-    secfxp = type(beta).sectype
+    secfxp = type(grad).sectype
     large_secfxp = mpc.SecFxp(2*secfxp.bit_length, 2*secfxp.frac_length)
 
     g_ = convert_to_secfxp(grad, large_secfxp)
@@ -273,7 +273,7 @@ async def lbfgs(f, f_grad, beta0, alpha, num_iterations, m, tolerance=0.005):
     # w = grad / norm(grad)  # NB: norm = 1
 
     s_i = -alpha * w 
-    beta += s_i  # l-bfgs step
+    beta = s_i  # l-bfgs step
     await mpc.barrier(f"gradient descent step")
 
     for i in range(1, num_iterations):

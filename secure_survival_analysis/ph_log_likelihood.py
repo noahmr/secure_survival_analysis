@@ -73,10 +73,15 @@ def negative_log_likelihood_gradient(beta, X, delta, grouping, ld):
         that survival time, including factor delta
     """
     # shapes: X (n,d) beta (d,) delta, grouping, ld (n,)
-    w = X @ beta              # inner products <beta, x_j> for all j
-    e = np_exp(w)             # e^<beta, x_j>
-    e = e[:, np.newaxis]
-    c = e * X  # row-wise product
+    if not isinstance(beta, type(X)):
+        assert np.all(beta == 0)
+        e = type(X)(np.ones((len(X), 1), dtype='O'))
+        c = X
+    else:        
+        w = X @ beta              # inner products <beta, x_j> for all j
+        e = np_exp(w)             # e^<beta, x_j>
+        e = e[:, np.newaxis]
+        c = e * X  # row-wise product
     e_c = np.hstack((e, c))
 
     # Compute the at-risk sums for each subject. This is a local operation
