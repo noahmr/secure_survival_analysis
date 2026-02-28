@@ -58,11 +58,7 @@ def mark_differences(values):
 
     # Create group indexing array by determining when new groups start, i.e.
     # when the value changes
-    d = values[1:] - values[:-1]
-    d = d * ttype.sectype.field.array(np.array([(1 / ttype.sectype.field(1<<ttype.sectype.frac_length)).value]))
-    diff = mpc.np_sgn(d, l=8, EQ=True)
-#    diff = mpc.np_sgn(d, l=ttype.sectype.frac_length, EQ=True)
-#    diff = values[1:] != values[:-1]
+    diff = values[1:] != values[:-1]
 
     # The first value always marks the start of a group
     one = ttype(np.array([1]))
