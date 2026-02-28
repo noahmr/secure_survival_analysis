@@ -60,6 +60,27 @@ def negative_log_likelihood(beta, X, delta, grouping, ld):
     return delta @ (s - w)
 
 
+def batch(ufunc, batch_size=2048):
+
+    @mpc.coroutine
+    async def batched_ufunc(a):  # TODO: generalize
+        await mpc.returnType((type(a), a.shape))
+        b = []
+        for i in range(0, a.size, batch_size):
+            b.append(ufunc(a[i: i+batch_size]))
+            await b[-1].share
+            mpc.peek(b[-1][0], f'await batch {i=} in {ufunc.__name__}')
+        return np.concatenate(b)
+
+    return batched_ufunc
+
+
+@batch
+def rec(a):
+    """Secure elementwise 1/a."""
+    return mpc._rec(a)
+
+
 def negative_log_likelihood_gradient(beta, X, delta, grouping, ld):
     """Compute gradient of the negative log-likelihood function for the Proportional Hazards Model
 
@@ -91,5 +112,6 @@ def negative_log_likelihood_gradient(beta, X, delta, grouping, ld):
     u = (grouping * r_v.T).T - ld[:, np.newaxis] * e_c
     s = group_sum(u, grouping)
 
-    s = s[:, 1:] / s[:, :1]  # perform the divisions
+    s = s[:, 1:] * rec(s[:, :1])  # perform the divisions
+#    s = s[:, 1:] / s[:, :1]  # perform the divisions
     return delta @ (s - X)

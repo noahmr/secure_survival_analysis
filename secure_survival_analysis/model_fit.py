@@ -68,6 +68,9 @@ async def fit_proportional_hazards_model(table, method='l-bfgs', alpha=1, num_it
 
     # Separate the status
     delta_sorted = X_sorted[:, 1]
+    delta_sorted.integral = True
+    assert delta_sorted.integral
+    assert grouping.integral
 
     # Drop the times and status; this isolates the covariates
     X_sorted = X_sorted[:, 2:]

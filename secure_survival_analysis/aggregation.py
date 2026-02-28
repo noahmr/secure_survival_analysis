@@ -58,7 +58,11 @@ def mark_differences(values):
 
     # Create group indexing array by determining when new groups start, i.e.
     # when the value changes
-    diff = values[1:] != values[:-1]
+    d = values[1:] - values[:-1]
+    d = d * ttype.sectype.field.array(np.array([(1 / ttype.sectype.field(1<<ttype.sectype.frac_length)).value]))
+    diff = mpc.np_sgn(d, l=8, EQ=True)
+#    diff = mpc.np_sgn(d, l=ttype.sectype.frac_length, EQ=True)
+#    diff = values[1:] != values[:-1]
 
     # The first value always marks the start of a group
     one = ttype(np.array([1]))
@@ -146,7 +150,12 @@ def selective_sum(values, grouping):
     assert len(values) == len(grouping)
 
     # Selective sum operator
-    ssum_op = lambda t1, t2: (1 - t2[-1])*t1 + t2  # NB: direct definition for efficiency
+#    ssum_op = lambda t1, t2: (1 - t2[-1])*t1 + t2  # NB: direct definition for efficiency
+    def ssum_op(t1, t2):
+        t2_1 = t2[-1]
+        t2_1.integral = True
+        assert t2_1.integral
+        return (1 - t2_1)*t1 + t2
 
     # Combine into a single matrix values|grouping
     combined = np.concatenate((values.reshape((len(values), -1)), grouping[:, np.newaxis]), axis=1)
