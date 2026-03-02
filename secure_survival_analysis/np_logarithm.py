@@ -45,27 +45,6 @@ def _log_taylor_degree(f):
     return k
 
 
-def np_log2(a):
-    """Secure elementwise logarithm base 2 of a."""
-    f = a.frac_length
-    l = a.sectype.bit_length
-    x = mpc.np_to_bits(a, l=l-1)  # low to high bits, ignore sign bit
-    x = np.flip(x, axis=-1)
-    k, v = mpc.np_find(x, 1, cs_f=lambda b, i: (i+1+b, (b+1) * 2**i))
-    v *= 2**(f - (l-1))  # NB: f <= l
-    b = a * v  # 1/2 <= b < 1
-
-    # Evaluate Taylor polynomial around 0.75 at b:
-    alpha = 0.75
-    theta = _log_taylor_degree(f)
-    y = b - alpha
-    y_powers = np.vander(y, theta + 1, increasing=True)[:, 1:]  # [y^1 y^2 ... y^theta]
-    i = np.arange(1, theta + 1)  # [1 2 ... theta]
-    coefficients = -1/math.log(2) / (i * (-alpha)**i)
-    log2_b = math.log2(alpha) + y_powers @ coefficients
-    return log2_b - k + f
-
-
 def batch(ufunc, batch_size=2048):
 
     @mpc.coroutine
@@ -80,8 +59,26 @@ def batch(ufunc, batch_size=2048):
 
     return batched_ufunc
 
+
 @batch
 def np_log(a):
     """Secure elementwise natural logarithm of a."""
-    return np_log2(a) * math.log(2)
+    f = a.frac_length
+    l = a.sectype.bit_length
+    x = mpc.np_to_bits(a, l=l-1)  # low to high bits, ignore sign bit
+    x = np.flip(x, axis=-1)
+    k, v = mpc.np_find(x, 1, cs_f=lambda b, i: (i+1+b, (b+1) * 2**i))
+    v *= 2**(f - (l-1))  # NB: f <= l
+    b = a * v  # 1/2 <= b < 1
 
+    # Evaluate Taylor polynomial around 0.75 at b:
+    alpha = 0.75
+    theta = _log_taylor_degree(f)
+    y = b - alpha
+    y_powers = np.vander(y, theta + 1, increasing=True)[:, 1:]  # [y^1 y^2 ... y^theta]
+    i = np.arange(1, theta + 1)  # [1 2 ... theta]
+    coefficients = -1 / (i * (-alpha)**i)
+    log_b = math.log(alpha) + y_powers @ coefficients
+    return log_b - (k - f) *math.log(2)
+
+# TODO: add np.log2 and other bases again.
