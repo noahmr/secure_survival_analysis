@@ -150,7 +150,6 @@ def selective_sum(values, grouping):
     def ssum_op(t1, t2):
         t2_1 = t2[-1]
         t2_1.integral = True
-        assert t2_1.integral
         return (1 - t2_1)*t1 + t2
 
     # Combine into a single matrix values|grouping
@@ -183,8 +182,6 @@ def group_propagate(values, grouping):
     assert len(values) == len(grouping)
     assert values.ndim <= 2
     assert grouping.ndim == 1
-
-    ttype = type(grouping)
 
     # Shift to the left once and insert a 1 at the end
     grouping_shifted = np.roll(grouping, -1)
