@@ -120,6 +120,20 @@ def selective_operator(op):
 
     return f
 
+def accumulate(x, f=operator.add, method=None):
+    # Brent-Kung vectorized
+    n = len(x)
+    for j in range((n//2).bit_length()):
+        d = 1 << j
+        I = np.arange(2*d - 1, n, 2*d)
+        x = mpc.np_update(x, I, f(x[I-d], x[I]))
+    t = (n//3).bit_length()
+    for j in reversed(range((n//3).bit_length())):
+        d = 1 << j
+        I = np.arange(3*d - 1, n, 2*d)
+        x = mpc.np_update(x, I, f(x[I-d], x[I]))
+    return x
+
 
 def selective_sum(values, grouping):
     """
@@ -146,17 +160,20 @@ def selective_sum(values, grouping):
     assert len(values) == len(grouping)
 
     # Selective sum operator
-#    ssum_op = lambda t1, t2: (1 - t2[-1])*t1 + t2  # NB: direct definition for efficiency
+    # NB: direct definition for efficiency
     def ssum_op(t1, t2):
-        t2_1 = t2[-1]
+#        t2_1 = t2[-1]
+        t2_1 = t2[:, -1:]
         t2_1.integral = True
         return (1 - t2_1)*t1 + t2
+
 
     # Combine into a single matrix values|grouping
     combined = np.concatenate((values.reshape((len(values), -1)), grouping[:, np.newaxis]), axis=1)
 
     # Prefix-OP; Note: the result is an iterator of secure arrays (of length 2 each)
-    prefix_result = np.vstack(tuple(mpctools.accumulate(combined, ssum_op, method='Brent-Kung')))
+#    prefix_result = np.vstack(tuple(mpctools.accumulate(combined, ssum_op, method='Brent-Kung')))
+    prefix_result = accumulate(combined, ssum_op, method='Brent-Kung')
     # TODO: use numpy function for this? E.g. np_accumulate
 
     # Select all except for the last entry (which has the indicator bits)
@@ -217,7 +234,7 @@ def group_propagate_right(values, grouping):
 
     # Apply the grouping as a mask to the values
     u = (grouping * values.T).T
-    
+
     # Selective sum to propagate first value in each group to the rest of the group
     r = selective_sum(u, grouping)
     return r

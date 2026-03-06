@@ -30,13 +30,13 @@ IN THE SOFTWARE.
 """
 
 import numpy as np
-from mpyc.runtime import mpc
+from mpyc.runtime import mpc, Future
 from secure_survival_analysis.aggregation import group_sum
 from secure_survival_analysis.np_logarithm import np_log
 from secure_survival_analysis.np_pow import np_exp
 
 
-def negative_log_likelihood(beta, X, delta, grouping, ld):
+async def negative_log_likelihood(beta, X, delta, grouping, ld):
     """Compute the negative log-likelihood function for the Proportional Hazards Model
 
     It is assumed that the samples are already sorted on survival times.
@@ -52,13 +52,45 @@ def negative_log_likelihood(beta, X, delta, grouping, ld):
     e = np_exp(w)                       # e^<beta, x_j>
     r = np.flip(np.cumsum(np.flip(e)))  # at-risk sums for each subject
 
+    await mpc.barrier("after np_exp")
+
     # Compute the at-risk / exponent sums for each subject taking into account the groups
     u = grouping * r - ld * e
     s = group_sum(u, grouping)
 
+    await mpc.barrier("after group_sum, before log")
+
     s = np_log(s)
     return delta @ (s - w)
 
+
+def batch(ufunc, batch_size=2048):
+
+    @mpc.coroutine
+    async def batched_ufunc(sftype, n):  # TODO: generalize
+        if issubclass(sftype, mpc.SecureObject):
+            await mpc.returnType((sftype.array, True, (n,)))
+            #field = sftype.field
+            #f = sftype.frac_length
+        else:
+            await mpc.returnType(Future)
+       
+        b = []
+        for i in range(0, n, batch_size):
+            b.append(ufunc(sftype, min(batch_size, n-i)))
+            if issubclass(sftype, mpc.SecureObject):
+                await b[-1].share
+#                mpc.peek(b[-1][0], f'await batch {i=} in {ufunc.__name__}')
+            else:
+                await b[-1]
+#                print(b[-1].result(), f'await batch {i=} in {ufunc.__name__}')
+                b[-1] = await b[-1]
+        return np.concatenate(b)
+
+    return batched_ufunc
+
+
+mpc.np_random_bits = batch(mpc.np_random_bits, batch_size=2**16)
 
 def batch(ufunc, batch_size=2048):
 
@@ -81,7 +113,7 @@ def rec(a):
     return mpc._rec(a)
 
 
-def negative_log_likelihood_gradient(beta, X, delta, grouping, ld):
+async def negative_log_likelihood_gradient(beta, X, delta, grouping, ld):
     """Compute gradient of the negative log-likelihood function for the Proportional Hazards Model
 
     It is assumed that the samples are already sorted on survival times.
@@ -101,17 +133,22 @@ def negative_log_likelihood_gradient(beta, X, delta, grouping, ld):
     else:        
         w = X @ beta              # inner products <beta, x_j> for all j
         e = np_exp(w)             # e^<beta, x_j>
+        del w
         e = e[:, np.newaxis]
         c = e * X  # row-wise product
     e_c = np.hstack((e, c))
-
+    del e, c
     # Compute the at-risk sums for each subject. This is a local operation
     r_v = np.flip(np.cumsum(np.flip(e_c, axis=0), axis=0), axis=0)
 
+    await mpc.barrier("after np_exp * X")
     # Compute at-risk / exponent sums for each subject taking into account the groups, col by col
     u = (grouping * r_v.T).T - ld[:, np.newaxis] * e_c
+    del r_v, e_c
+    await mpc.barrier("in between u and s")
     s = group_sum(u, grouping)
 
+    await mpc.barrier("after group_sum, before reciprocal")
     s = s[:, 1:] * rec(s[:, :1])  # perform the divisions
 #    s = s[:, 1:] / s[:, :1]  # perform the divisions
     return delta @ (s - X)
