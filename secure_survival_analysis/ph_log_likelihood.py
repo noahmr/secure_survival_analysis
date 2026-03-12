@@ -135,6 +135,7 @@ async def negative_log_likelihood_gradient(beta, X, delta, grouping, ld):
         e = np_exp(w)             # e^<beta, x_j>
         del w
         e = e[:, np.newaxis]
+        await mpc.barrier("before c= e*X")
         c = e * X  # row-wise product
     e_c = np.hstack((e, c))
     del e, c

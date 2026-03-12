@@ -80,6 +80,8 @@ async def fit_proportional_hazards_model(table, method='l-bfgs', alpha=1, num_it
 
     # Compute group sizes, and indices within the groups
     d, l = _group_sum(delta_sorted, grouping)
+    
+    await mpc.barrier(f"after groupsum, before l / d")
     ld = delta_sorted * ((l - 1) / (d + (1 - delta_sorted)))
     del d, l
 
