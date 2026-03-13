@@ -29,9 +29,11 @@ async def main():
                         help='maximum number of iterations (default=15)')
     parser.add_argument('-s', '--sort_column', type=int, metavar='S',
                         help='index of time column, default 0, -1 for no secure sort')
+    parser.add_argument('--hessian_start', type=bool,
+                        help='perform the first iteration through the approximate Hessian matrix')
     parser.add_argument('--concordance_index', action='store_true',
                         help='perform concordance test')
-    parser.set_defaults(dataset=0, bit_length=40, samples=20, method=2, alpha=1, iterations=15, sort_column=0)
+    parser.set_defaults(dataset=0, bit_length=40, samples=20, method=2, alpha=1, iterations=15, sort_column=0, hessian_start=False)
     args = parser.parse_args()
 
     num_records = args.samples
@@ -73,7 +75,7 @@ async def main():
     synthetic = mpc.input(secfxp.array(synthetic), senders=0)
 
     # Fit model
-    beta, likelihoods, _ = await model_fit.fit_proportional_hazards_model(synthetic, method=method, alpha=args.alpha, num_iterations=args.iterations, sort_column=args.sort_column)
+    beta, likelihoods, _ = await model_fit.fit_proportional_hazards_model(synthetic, method=method, alpha=args.alpha, num_iterations=args.iterations, sort_column=args.sort_column, hessian_start=args.hessian_start)
     beta = await mpc.output(beta)
     print('beta: ', beta)
     likelihoods = await mpc.output(likelihoods)

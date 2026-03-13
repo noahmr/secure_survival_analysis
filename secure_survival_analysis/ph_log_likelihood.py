@@ -153,3 +153,38 @@ async def negative_log_likelihood_gradient(beta, X, delta, grouping, ld):
     s = s[:, 1:] * rec(s[:, :1])  # perform the divisions
 #    s = s[:, 1:] / s[:, :1]  # perform the divisions
     return delta @ (s - X)
+
+
+async def negative_log_likelihood_gradient_hessian(beta, X, delta, grouping, ld):
+    """Compute gradient and diagonal entries of the Hessian matrix at the point beta"""
+
+    # shapes: X (n,d) beta (d,) delta, grouping, ld (n,)
+    if not isinstance(beta, type(X)):
+        assert np.all(beta == 0)
+        e = type(X)(np.ones((len(X), 1), dtype='O'))
+        c = X
+    else:        
+        w = X @ beta              # inner products <beta, x_j> for all j
+        e = np_exp(w)             # e^<beta, x_j>
+        del w
+        e = e[:, np.newaxis]
+        c = e * X  # row-wise product
+    e_c = np.hstack((e, c, c*X))
+    del e, c
+
+    # Compute the at-risk sums for each subject. This is a local operation
+    r_v = np.flip(np.cumsum(np.flip(e_c, axis=0), axis=0), axis=0)
+
+    # Compute at-risk / exponent sums for each subject taking into account the groups, col by col
+    u = (grouping * r_v.T).T - ld[:, np.newaxis] * e_c
+    del r_v, e_c
+
+    s = group_sum(u, grouping)
+
+    s = s[:, 1:] * rec(s[:, :1])  # perform the divisions
+
+    k = len(X[0])
+    grad = delta @ (s[:, :k] - X)
+    hess = delta @ (s[:, k:] - s[:, :k] * s[:, :k]) # diagonal terms of Hessian matrix
+
+    return grad, hess

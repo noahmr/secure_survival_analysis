@@ -37,7 +37,7 @@ from secure_survival_analysis.aggregation import group_values, _group_sum
 from secure_survival_analysis.optimize import gradient_descent, bfgs, lbfgs
 
 
-async def fit_proportional_hazards_model(table, method='l-bfgs', alpha=1, num_iterations=10, tolerance=0.005, sort_column=0):
+async def fit_proportional_hazards_model(table, method='l-bfgs', alpha=1, num_iterations=10, tolerance=0.005, sort_column=0, hessian_start=False):
     """Fit the proportional hazards model
 
     Parameters
@@ -52,7 +52,10 @@ async def fit_proportional_hazards_model(table, method='l-bfgs', alpha=1, num_it
         maximum number of iterations to perform
     tolerance :
         tolerance for stopping criterion
-
+    hessian_start : bool
+        boolean indicating whether to perform the first iteration through the
+        approximate Hessian matrix.
+        
     Returns
     ------
     Minimizer beta, log-likelihood at last iteration
@@ -101,13 +104,18 @@ async def fit_proportional_hazards_model(table, method='l-bfgs', alpha=1, num_it
     beta0 = np.array([np.float64(0)] * num_features)
     start = time.time()
 
+    if hessian_start:
+        grad0, hess0 = await ph_log_likelihood.negative_log_likelihood_gradient_hessian(beta0, X_sorted, delta_sorted, grouping, ld)
+    else:
+        grad0, hess0 = None, None
+
     H = None
     if method == 'gd':
         beta, likelihoods_ = await gradient_descent(f, f_grad, beta0, alpha, num_iterations, tolerance=tolerance)
     elif method == 'bfgs':
-        beta, likelihoods_, H = await bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=tolerance)
+        beta, likelihoods_, H = await bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=tolerance, grad0=grad0, hess0=hess0)
     elif method == 'l-bfgs':
-        beta, likelihoods_ = await lbfgs(f, f_grad, beta0, alpha, num_iterations, m=7, tolerance=tolerance)
+        beta, likelihoods_ = await lbfgs(f, f_grad, beta0, alpha, num_iterations, m=7, tolerance=tolerance, grad0=grad0, hess0=hess0)
     else:
         raise ValueError("invalid method specified")
 

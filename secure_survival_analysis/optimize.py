@@ -102,7 +102,7 @@ async def gradient_descent(f, f_grad, beta0, alpha, num_iterations, tolerance=0.
     return beta, likelihoods
 
 
-async def bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005):
+async def bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005, grad0=None, hess0=None):
     """Minimize the objective function f (with gradient f_grad) through the BFGS method
 
     Parameters
@@ -127,28 +127,55 @@ async def bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005):
     """
     logging.info("bfgs(): starting bfgs algorithm")
     beta = beta0
-    grad = f_grad(beta)
+    
+    if grad0 is None:
+        grad = await f_grad(beta)
+    else:
+        grad = grad0
 
-    # First iteration is simply gradient descent; We only have the gradient
-    # at one point, no info about curvature yet.
-    logging.info("--- gradient descent step")
+    secfxp = type(grad).sectype
+    large_secfxp = mpc.SecFxp(2*secfxp.bit_length, 2*secfxp.frac_length)
+    g_ = convert_to_secfxp(grad, large_secfxp)
 
-    # Explicitly dampen the first step, since the gradient is typically very large.
-    # The bfgs steps are damped in a different manner.
-    w = grad / norm(grad)
+    if hess0 is None:
+        # First iteration is simply gradient descent; We only have the gradient
+        # at one point, no info about curvature yet.
+        logging.info("--- gradient descent step")
+
+        # Explicitly dampen the first step, since the first gradient is typically very large.
+        # The l-bfgs steps are damped in a different manner.
+        #
+        # Since the values in 'grad' may be very large, this operation is performed
+        # in a larger fixed-point representation
+        w_ = g_ / norm(g_)  # NB: norm = 1
+
+        await mpc.barrier(f"gradient descent step")
+    else:
+        logging.info("--- gradient/approximate hessian step")
+        hess0_ = convert_to_secfxp(hess0, large_secfxp)
+
+        w_ = g_ / hess0_
+
+        await mpc.barrier("--- gradient/approximate hessian step")
+
+    w = convert_to_secfxp(w_, secfxp)
+
     s_i = -alpha * w 
-    beta += s_i  # bfgs step
-    await mpc.barrier(f"gradient descent step")
+    beta = s_i  # l-bfgs step
 
     for i in range(1, num_iterations):
         logging.info(f'iteration {i}')
+        mpc.peek(beta, "beta")
         grad_prev = grad
-        grad = f_grad(beta)
+        grad = await f_grad(beta)
         y_i = grad - grad_prev
         rho_i = 1 / (y_i @ s_i)
         if i == 1:
-            gamma = 1 / (rho_i * (y_i @ y_i))
-            H = np.diag(mpc.np_fromlist([gamma] * len(beta)))
+            if hess0 is None:
+                gamma = 1 / (rho_i * (y_i @ y_i))
+                H = np.diag(mpc.np_fromlist([gamma] * len(beta)))
+            else:
+                H = np.diag(1 / hess0)
         r = rho_i * s_i
         A = np.eye(len(beta)) - np.outer(r, y_i)  # I - rho_i s_i y_i^T
         C = np.outer(r, s_i)  # rho_i s_i s_i^T
@@ -160,7 +187,7 @@ async def bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005):
             break
 
     logging.info("bfgs(): evaluating objective function")
-    likelihoods = [f(beta)]
+    likelihoods = [await f(beta)]
     await mpc.barrier(f"objective function")
     logging.info("finished computing objective function")
     return beta, likelihoods, H
@@ -219,7 +246,7 @@ def two_loop_recursion(s, y, rho, grad, large_secfxp):
     return w
 
 
-async def lbfgs(f, f_grad, beta0, alpha, num_iterations, m, tolerance=0.005):
+async def lbfgs(f, f_grad, beta0, alpha, num_iterations, m, tolerance=0.005, grad0=None, hess0=None):
     """Minimize the objective function f (with gradient f_grad) through the l-bfgs method
 
     Parameters
@@ -246,35 +273,48 @@ async def lbfgs(f, f_grad, beta0, alpha, num_iterations, m, tolerance=0.005):
     """
     logging.info("lbfgs(): starting lbfgs algorithm")
     beta = beta0
-    grad = await f_grad(beta)
+
+    if grad0 is None:
+        grad = await f_grad(beta)
+    else:
+        grad = grad0
 
     # memory of previous point/gradient differences
     s = []
     y = []
     rho = []
 
-    # First iteration is simply gradient descent; We only have the gradient
-    # at one point, no info about curvature yet.
-    logging.info("--- gradient descent step")
-
-    # Explicitly dampen the first step, since the first gradient is typically very large.
-    # The l-bfgs steps are damped in a different manner.
-    #
-    # Since the values in 'grad' may be very large, this operation is performed
-    # in a larger fixed-point representation
     secfxp = type(grad).sectype
     large_secfxp = mpc.SecFxp(2*secfxp.bit_length, 2*secfxp.frac_length)
 
     g_ = convert_to_secfxp(grad, large_secfxp)
-    gamma = 1 / norm(g_)
-    w_ = gamma * g_
+
+    if hess0 is None:
+        # First iteration is simply gradient descent; We only have the gradient
+        # at one point, no info about curvature yet.
+        logging.info("--- gradient descent step")
+
+        # Explicitly dampen the first step, since the first gradient is typically very large.
+        # The l-bfgs steps are damped in a different manner.
+        #
+        # Since the values in 'grad' may be very large, this operation is performed
+        # in a larger fixed-point representation
+
+        w_ = g_ / norm(g_)  # NB: norm = 1
+
+        await mpc.barrier(f"gradient descent step")
+    else:
+        logging.info("--- gradient/approximate hessian step")
+        hess0_ = convert_to_secfxp(hess0, large_secfxp)
+
+        w_ = g_ / hess0_
+
+        await mpc.barrier("--- gradient/approximate hessian step")
 
     w = convert_to_secfxp(w_, secfxp)
-    # w = grad / norm(grad)  # NB: norm = 1
 
     s_i = -alpha * w 
     beta = s_i  # l-bfgs step
-    await mpc.barrier(f"gradient descent step")
 
     for i in range(1, num_iterations):
         logging.info(f'iteration {i}')
