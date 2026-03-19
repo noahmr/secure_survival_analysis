@@ -38,9 +38,11 @@ from mpyc.runtime import mpc
 @functools.cache
 def _log_taylor_degree(f):
     """Required degree of Taylor polynomial for log x as a function of f."""
-    # Degree k s.t. maximum error of 1/(k+1) 2^-(k+1) <= 2^-f, that is log2(k+1) + k+1 >= f.
-    k = f  # invariant: math.log2(k+1) + k+1 >= f
-    while math.log2(k) + k >= f:
+    # Degree k s.t. maximum error 1/(k+1) w^-(k+1) <= 2^-f,
+    # that is, log2(k+1) + (k+1)log2(w) >= f, where w = 1/(sqrt(2) - 1).
+    w = 1 / (math.sqrt(2) - 1)
+    k = f - 1  # invariant: log2(k+1) + (k+1)log2(w) >= f
+    while math.log2(k) + k * math.log2(w) >= f:
         k -= 1
     return k
 
@@ -72,7 +74,7 @@ def np_log(a):
     b = a * v  # 1/2 <= b < 1
 
     # Evaluate Taylor polynomial around 0.75 at b:
-    alpha = 0.75
+    alpha = 0.5 * math.sqrt(2)
     theta = _log_taylor_degree(f)
     y = b - alpha
     y_powers = np.vander(y, theta + 1, increasing=True)[:, 1:]  # [y^1 y^2 ... y^theta]
