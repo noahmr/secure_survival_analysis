@@ -75,7 +75,8 @@ async def gradient_descent(f, f_grad, beta0, alpha, num_iterations, tolerance=0.
     beta0 :
         starting value, should be numpy array
     alpha :
-        step size
+        function alpha(i, f, beta, grad, dir) to compute the step size at
+        each iteration
     num_iterations :
         maximum number of iterations to perform
     tolerance :
@@ -86,17 +87,18 @@ async def gradient_descent(f, f_grad, beta0, alpha, num_iterations, tolerance=0.
     Minimizer beta, list of function values of each iteration
 
     """
-    logging.info("bfgs(): starting gradient_descent algorithm")
+    logging.info("gradient_descent(): starting gradient_descent algorithm")
     beta = beta0
     for i in range(num_iterations):
         logging.info(f'iteration {i}')
-        grad = f_grad(beta)
-        beta -= alpha * grad  # gradient descent step
+        grad = await f_grad(beta)
+        alpha_i = alpha(i, f, beta, grad, grad)
+        beta -= alpha_i * grad  # gradient descent step
         if await mpc.output(grad @ grad < tolerance**2):
             break
 
     logging.info("gradient_descent(): evaluating objective function")
-    likelihoods = [f(beta)]
+    likelihoods = [await f(beta)]
     await mpc.barrier(f"objective function")
     logging.info("finished computing objective function")
     return beta, likelihoods
@@ -114,7 +116,8 @@ async def bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005, grad0=N
     beta0 : array
         starting value, should be numpy array
     alpha :
-        step size
+        function alpha(i, f, beta, grad, dir) to compute the step size at
+        each iteration
     num_iterations :
         maximum number of iterations to perform
     tolerance :
@@ -160,7 +163,8 @@ async def bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005, grad0=N
 
     w = convert_to_secfxp(w_, secfxp)
 
-    s_i = -alpha * w 
+    alpha_0 = alpha(0, f, beta0, grad, w)
+    s_i = -alpha_0 * w 
     beta = s_i  # l-bfgs step
 
     for i in range(1, num_iterations):
@@ -181,7 +185,8 @@ async def bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005, grad0=N
         C = np.outer(r, s_i)  # rho_i s_i s_i^T
         H = A @ H @ A.T + C  # update Hessian
         w = H @ grad
-        s_i = -alpha * w 
+        alpha_i = alpha(i, f, beta, grad, w)
+        s_i = -alpha_i * w 
         beta += s_i  # bfgs step
         if await mpc.output(w @ w < tolerance**2):
             break
@@ -193,7 +198,7 @@ async def bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005, grad0=N
     return beta, likelihoods, H
 
 
-def two_loop_recursion(s, y, rho, grad, large_secfxp):
+def two_loop_recursion(s, y, rho, grad, large_secfxp, hess0):
     """Use two-loop recursion to determine the l-bfgs optimization direction
 
     This is based on Algorithm 2.1 of:
@@ -232,9 +237,13 @@ def two_loop_recursion(s, y, rho, grad, large_secfxp):
         w -= a[j] * y[j]
     #w *= (y[-1] @ s[-1]) / (y[-1] @ y[-1])  # NB: scale w using last y, s vectors
 
-    y_i = convert_to_secfxp(y[-1], large_secfxp)
-    s_i = convert_to_secfxp(s[-1], large_secfxp)
-    gamma_ = mpc.np_matmul(y_i, s_i) / mpc.np_matmul(y_i, y_i)
+    if hess0 is None:
+        y_i = convert_to_secfxp(y[-1], large_secfxp)
+        s_i = convert_to_secfxp(s[-1], large_secfxp)
+        gamma_ = mpc.np_matmul(y_i, s_i) / mpc.np_matmul(y_i, y_i)
+    else:
+        hess0_ = convert_to_secfxp(hess0, large_secfxp)
+        gamma_ = 1 / hess0_
 
     w_ = convert_to_secfxp(w, large_secfxp)
     w_ = gamma_ * w_
@@ -258,7 +267,8 @@ async def lbfgs(f, f_grad, beta0, alpha, num_iterations, m, tolerance=0.005, gra
     beta0 : array
         starting value, should be numpy array
     alpha :
-        step size
+        function alpha(i, f, beta, grad, dir) to compute the step size at
+        each iteration
     num_iterations :
         maximum number of iterations to perform
     m :
@@ -313,7 +323,8 @@ async def lbfgs(f, f_grad, beta0, alpha, num_iterations, m, tolerance=0.005, gra
 
     w = convert_to_secfxp(w_, secfxp)
 
-    s_i = -alpha * w 
+    alpha_0 = alpha(0, f, beta0, grad, w)
+    s_i = -alpha_0 * w 
     beta = s_i  # l-bfgs step
 
     for i in range(1, num_iterations):
@@ -331,8 +342,9 @@ async def lbfgs(f, f_grad, beta0, alpha, num_iterations, m, tolerance=0.005, gra
             y.pop(0)
             rho.pop(0)
 
-        w = two_loop_recursion(s, y, rho, grad, large_secfxp)
-        s_i = -alpha * w 
+        w = two_loop_recursion(s, y, rho, grad, large_secfxp, hess0)
+        alpha_i = alpha(i, f, beta, grad, w)
+        s_i = -alpha_i * w 
         beta += s_i  # l-bfgs step
         if await mpc.output(w @ w < tolerance**2):
             break

@@ -17,7 +17,7 @@ async def main():
     parser.add_argument('-i', '--dataset', type=int, metavar='I',
                         help=('dataset 0=btrial(default) 1=waltons 2=aml 3=lung 4=dd'
                               ' 5=stanford_heart_transplants 6=kidney_transplant'))
-    parser.add_argument('-a', '--alpha', type=int, metavar='A',
+    parser.add_argument('-a', '--alpha', type=float, metavar='A',
                         help='step size (default 1)')
     parser.add_argument('-l', '--bit-length', type=int, metavar='L',
                         help='override preset bit length for dataset')

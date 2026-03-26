@@ -99,6 +99,9 @@ async def fit_proportional_hazards_model(table, method='l-bfgs', alpha=1, num_it
     def f_grad(b):
         return ph_log_likelihood.negative_log_likelihood_gradient(b, X_sorted, delta_sorted, grouping, ld)
 
+    def stepsize(i, f, beta, grad, dir):
+        return alpha    # proportional hazards uses constant step size of alpha
+
     num_features = len(X_sorted[0])
 #    beta0 = ttype(np.array([np.float64(0)] * num_features))
     beta0 = np.array([np.float64(0)] * num_features)
@@ -111,11 +114,11 @@ async def fit_proportional_hazards_model(table, method='l-bfgs', alpha=1, num_it
 
     H = None
     if method == 'gd':
-        beta, likelihoods_ = await gradient_descent(f, f_grad, beta0, alpha, num_iterations, tolerance=tolerance)
+        beta, likelihoods_ = await gradient_descent(f, f_grad, beta0, stepsize, num_iterations, tolerance=tolerance)
     elif method == 'bfgs':
-        beta, likelihoods_, H = await bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=tolerance, grad0=grad0, hess0=hess0)
+        beta, likelihoods_, H = await bfgs(f, f_grad, beta0, stepsize, num_iterations, tolerance=tolerance, grad0=grad0, hess0=hess0)
     elif method == 'l-bfgs':
-        beta, likelihoods_ = await lbfgs(f, f_grad, beta0, alpha, num_iterations, m=7, tolerance=tolerance, grad0=grad0, hess0=hess0)
+        beta, likelihoods_ = await lbfgs(f, f_grad, beta0, stepsize, num_iterations, m=7, tolerance=tolerance, grad0=grad0, hess0=hess0)
     else:
         raise ValueError("invalid method specified")
 
