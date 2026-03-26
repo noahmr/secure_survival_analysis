@@ -31,8 +31,8 @@ IN THE SOFTWARE.
 import math
 import secrets
 import functools
-import gmpy2
 from mpyc.numpy import np
+from mpyc import gmpy as gmpy2
 from mpyc.runtime import mpc
 
 
@@ -72,37 +72,38 @@ async def np_pow_integer_exponent(b, a):
     for equality, comparison, bits and exponentiation." Theory of Cryptography Conference.
     Berlin, Heidelberg: Springer Berlin Heidelberg, 2006.
     """
-    ttype = type(a)
-    await mpc.returnType((ttype, True, a.shape))
+    await mpc.returnType((type(a), True, a.shape))
 
-    modulus = a.sectype.field.modulus
     m = len(mpc.parties)
+    t = mpc.threshold
     k = mpc.options.sec_param
     l = a.sectype.bit_length
     f = a.sectype.frac_length
-
-    # Let each party locally generate a random number r_i
-    bound = 1<<(l + k) // m
-    r = np.array([secrets.randbelow(bound) for _ in range(len(a))], dtype='O')
-    # Locally compute b^{-r_i} at each party
-    b_pow_r = gmpy2.powmod_exp_list(b, -r, modulus)
-    b_pow_r = np.vectorize(int, otypes='O')(b_pow_r)
-
-    r_1 = np.stack(mpc.input(ttype(np.vstack((r, b_pow_r)))))
+    p = a.sectype.field.modulus
+    uci = mpc._program_counter[0] % m
+    senders = tuple((uci + i) % m for i in range(t+1))  # NB: simple load balancing
+    if mpc.pid in senders:
+        # All senders locally generate random numbers r_i and compute b^(-r_i).
+        bound = 1<<(l + k) // (t+1)
+        r = np.array([secrets.randbelow(bound) for _ in range(len(a))], dtype=object)  # r_i
+        b_r = np.vectorize(int, otypes='O')(gmpy2.powmod_exp_list(b, -r, p))  # b^(-r_i)
+        r_1 = type(a)(np.vstack((r, b_r)))
+        del r, b_r
+    else:
+        r_1 = type(a)(shape=(2, len(a)), integral=True)
+    r_1 = np.stack(mpc.input(r_1, senders=senders))
     r = np.sum(r_1[:, 0], axis=0)
-    b_pow_r = np.prod(r_1[:, 1], axis=0)  # b^-r
+    b_r = np.prod(r_1[:, 1], axis=0)  # b^-r
     del r_1
 
     c = await mpc.output(a + r, raw=True)
     c = c.value >> f
-    b_pow_a_r = gmpy2.powmod_exp_list(b, c, modulus)  # b^(a+r)
-    b_pow_a_r = np.vectorize(int, otypes='O')(b_pow_a_r)
-    b_pow_a_r *= 2**f
-    return b_pow_a_r * b_pow_r
+    c = np.vectorize(int, otypes='O')(gmpy2.powmod_exp_list(b, c, p))  # b^(a+r)
+    return c * b_r * 2**f  # b^a
 
 
 def np_exp2(a):
-    """Compute 2^a, secret-shared fixed point exponents a."""
+    """Compute 2^a, given secret-shared fixed-point exponents a."""
     l = a.sectype.bit_length
     f = a.sectype.frac_length
     # For it to be possible for 2^a to be represented as a signed fixed-point number:
@@ -126,6 +127,7 @@ def np_pow(b, a):
         # Convert to base 2, using b^a = 2^(a log_2 b):
         a *= math.log2(b)
     return np_exp2(a)
+
 
 def batch(ufunc, batch_size=4096):
 

@@ -73,7 +73,7 @@ def np_log(a):
     v *= 2**(f - (l-1))  # NB: f <= l
     b = a * v  # 1/2 <= b < 1
 
-    # Evaluate Taylor polynomial around 0.75 at b:
+    # Evaluate Taylor polynomial at b around 1/sqrt(2):
     alpha = 0.5 * math.sqrt(2)
     theta = _log_taylor_degree(f)
     y = b - alpha
@@ -81,6 +81,6 @@ def np_log(a):
     i = np.arange(1, theta + 1)  # [1 2 ... theta]
     coefficients = -1 / (i * (-alpha)**i)
     log_b = math.log(alpha) + y_powers @ coefficients
-    return log_b - (k - f) *math.log(2)
+    return log_b - (k - f) * math.log(2)
 
 # TODO: add np.log2 and other bases again.

@@ -38,6 +38,7 @@ async def main():
 
     num_records = args.samples
     secfxp = mpc.SecFxp(args.bit_length)
+    print(f'Using secure {secfxp.bit_length}-bit fixed-point numbers: {secfxp.__name__}')
     method = {0: 'gd', 1: 'bfgs', 2: 'l-bfgs'}[args.method]
 
     await mpc.start()
@@ -84,8 +85,8 @@ async def main():
     await mpc.shutdown()
 
     if num_records > 10000 or not args.concordance_index:
-        return 
-        
+        return
+
     await mpc.start()
     logging.info(f'Reading dataset of {num_records} records')
     synthetic = pd.read_csv('synthetic_hazards10000.csv')[:num_records]
