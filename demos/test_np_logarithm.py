@@ -32,7 +32,6 @@ import time
 import logging
 import numpy as np
 from mpyc.runtime import mpc
-from secure_survival_analysis import np_logarithm
 
 
 async def main():
@@ -68,8 +67,7 @@ async def main():
     start = time.time()
 
     # Compute logarithm
-    lg = np_logarithm.np_log(v)
-    result = await mpc.output(lg)
+    result = await mpc.output(np.log(v))
 
     await mpc.barrier("computing results")
     logging.info("finished computing results")

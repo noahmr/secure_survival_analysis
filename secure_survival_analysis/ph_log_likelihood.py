@@ -32,8 +32,6 @@ IN THE SOFTWARE.
 import numpy as np
 from mpyc.runtime import mpc, Future
 from secure_survival_analysis.aggregation import group_sum
-from secure_survival_analysis.np_logarithm import np_log
-from secure_survival_analysis.np_pow import np_exp
 
 
 async def negative_log_likelihood(beta, X, delta, grouping, ld):
@@ -92,22 +90,33 @@ def batch(ufunc, batch_size=2048):
 
 mpc.np_random_bits = batch(mpc.np_random_bits, batch_size=2**16)
 
-def batch(ufunc, batch_size=2048):
+def batch(batch_size=2048):
 
-    @mpc.coroutine
-    async def batched_ufunc(a):  # TODO: generalize
-        await mpc.returnType((type(a), a.shape))
-        b = []
-        for i in range(0, a.size, batch_size):
-            b.append(ufunc(a[i: i+batch_size]))
-            await b[-1].share
-            mpc.peek(b[-1][0], f'await batch {i=} in {ufunc.__name__}')
-        return np.concatenate(b)
+    def decorator(ufunc):
 
-    return batched_ufunc
+        @mpc.coroutine
+        async def batched_ufunc(a):  # TODO: generalize
+            await mpc.returnType((type(a), a.shape))
+            b = []
+            for i in range(0, a.size, batch_size):
+                b.append(ufunc(a[i: i+batch_size]))
+                await b[-1].share
+                mpc.peek(b[-1][0], f'await batch {i=} in {ufunc.__name__}')
+            return np.concatenate(b)
 
+        return batched_ufunc
 
-@batch
+    return decorator
+
+@batch(4096)
+def np_exp(a):
+    return np.exp(a)
+
+@batch()
+def np_log(a):
+    return np.log(a)
+    
+@batch()
 def rec(a):
     """Secure elementwise 1/a."""
     return mpc._rec(a)

@@ -32,9 +32,8 @@ import sys
 import time
 import math
 import logging
-from mpyc.numpy import np
+import numpy as np
 from mpyc.runtime import mpc
-from secure_survival_analysis import np_pow
 
 
 async def main():
@@ -67,15 +66,10 @@ async def main():
     await mpc.barrier("sharing inputs")
     logging.info("finished sharing inputs")
 
-    base = math.e
-    logging.info(f"Base = {base}")
-
     start = time.time()
 
     # Compute powers
-#    ex = np_pow.np_pow(base, v)
-    ex = np_pow.np_exp(v)
-    result = await mpc.output(ex)
+    result = await mpc.output(np.exp(v))
 
     await mpc.barrier("computing results")
     logging.info("finished computing results")
@@ -90,7 +84,7 @@ async def main():
     print_randoms = randoms_open[:5]
     print_results = result[:5]
     print("MPyC pow(", print_randoms, ") = ", print_results)
-    print("Python pow(", print_randoms, ") = ", np.pow(base, print_randoms))
+    print("Python pow(", print_randoms, ") = ", np.exp(print_randoms))
 
     await mpc.shutdown()
 
