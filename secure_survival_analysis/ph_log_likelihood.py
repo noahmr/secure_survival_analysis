@@ -34,7 +34,7 @@ from mpyc.runtime import mpc, Future
 from secure_survival_analysis.aggregation import group_sum
 
 
-async def log_likelihood(beta, X, delta, grouping, ld):
+def log_likelihood(beta, X, delta, grouping, ld):
     """Compute the log-likelihood function for the Proportional Hazards Model
 
     It is assumed that the samples are already sorted on survival times.
@@ -50,13 +50,9 @@ async def log_likelihood(beta, X, delta, grouping, ld):
     e = np_exp(w)                       # e^<beta, x_j>
     r = np.flip(np.cumsum(np.flip(e)))  # at-risk sums for each subject
 
-    await mpc.barrier("after np_exp")
-
     # Compute the at-risk / exponent sums for each subject taking into account the groups
     u = grouping * r - ld * e
     s = group_sum(u, grouping)
-
-    await mpc.barrier("after group_sum, before log")
 
     s = np_log(s)
     return delta @ (w - s)
@@ -122,7 +118,7 @@ def rec(a):
     return mpc._rec(a)
 
 
-async def log_likelihood_gradient(beta, X, delta, grouping, ld):
+def log_likelihood_gradient(beta, X, delta, grouping, ld):
     """Compute gradient of the log-likelihood function for the Proportional Hazards Model
 
     It is assumed that the samples are already sorted on survival times.
@@ -144,27 +140,23 @@ async def log_likelihood_gradient(beta, X, delta, grouping, ld):
         e = np_exp(w)             # e^<beta, x_j>
         del w
         e = e[:, np.newaxis]
-        await mpc.barrier("before c= e*X")
         c = e * X  # row-wise product
     e_c = np.hstack((e, c))
     del e, c
     # Compute the at-risk sums for each subject. This is a local operation
     r_v = np.flip(np.cumsum(np.flip(e_c, axis=0), axis=0), axis=0)
 
-    await mpc.barrier("after np_exp * X")
     # Compute at-risk / exponent sums for each subject taking into account the groups, col by col
     u = (grouping * r_v.T).T - ld[:, np.newaxis] * e_c
     del r_v, e_c
-    await mpc.barrier("in between u and s")
     s = group_sum(u, grouping)
 
-    await mpc.barrier("after group_sum, before reciprocal")
     s = s[:, 1:] * rec(s[:, :1])  # perform the divisions
 #    s = s[:, 1:] / s[:, :1]  # perform the divisions
     return delta @ (X - s)
 
 
-async def log_likelihood_gradient_hessian(beta, X, delta, grouping, ld):
+def log_likelihood_gradient_hessian(beta, X, delta, grouping, ld):
     """Compute gradient and diagonal entries of the Hessian matrix at the point beta"""
 
     # shapes: X (n,d) beta (d,) delta, grouping, ld (n,)

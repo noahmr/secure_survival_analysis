@@ -91,14 +91,14 @@ async def gradient_descent(f, f_grad, beta0, alpha, num_iterations, tolerance=0.
     beta = beta0
     for i in range(num_iterations):
         logging.info(f'iteration {i}')
-        grad = await f_grad(beta)
+        grad = f_grad(beta)
         alpha_i = alpha(i, f, beta, grad, grad)
         beta += alpha_i * grad  # gradient descent step
         if await mpc.output(grad @ grad < tolerance**2):
             break
 
     logging.info("gradient_descent(): evaluating objective function")
-    likelihoods = [await f(beta)]
+    likelihoods = [f(beta)]
     await mpc.barrier(f"objective function")
     logging.info("finished computing objective function")
     return beta, likelihoods
@@ -132,7 +132,7 @@ async def bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005, grad0=N
     beta = beta0
     
     if grad0 is None:
-        grad = await f_grad(beta)
+        grad = f_grad(beta)
     else:
         grad = grad0
 
@@ -171,7 +171,7 @@ async def bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005, grad0=N
         logging.info(f'iteration {i}')
         mpc.peek(beta, "beta")
         grad_prev = grad
-        grad = await f_grad(beta)
+        grad = f_grad(beta)
         y_i = -(grad - grad_prev)
         rho_i = 1 / (y_i @ s_i)
         if i == 1:
@@ -192,7 +192,7 @@ async def bfgs(f, f_grad, beta0, alpha, num_iterations, tolerance=0.005, grad0=N
             break
 
     logging.info("bfgs(): evaluating objective function")
-    likelihoods = [await f(beta)]
+    likelihoods = [f(beta)]
     await mpc.barrier(f"objective function")
     logging.info("finished computing objective function")
     return beta, likelihoods, H
@@ -285,7 +285,7 @@ async def lbfgs(f, f_grad, beta0, alpha, num_iterations, m, tolerance=0.005, gra
     beta = beta0
 
     if grad0 is None:
-        grad = await f_grad(beta)
+        grad = f_grad(beta)
     else:
         grad = grad0
 
@@ -331,7 +331,7 @@ async def lbfgs(f, f_grad, beta0, alpha, num_iterations, m, tolerance=0.005, gra
         logging.info(f'iteration {i}')
         mpc.peek(beta, "beta")
         grad_prev = grad
-        grad = await f_grad(beta)
+        grad = f_grad(beta)
         y_i = -(grad - grad_prev)
         rho_i = 1 / (y_i @ s_i)
         s.append(s_i)
@@ -350,7 +350,7 @@ async def lbfgs(f, f_grad, beta0, alpha, num_iterations, m, tolerance=0.005, gra
             break
 
     logging.info("lbfgs() finished")
-    likelihoods = [await f(beta)]
+    likelihoods = [f(beta)]
     await mpc.barrier(f"objective function")
     logging.info("finished computing objective function")
     return beta, likelihoods
