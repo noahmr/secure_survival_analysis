@@ -127,7 +127,6 @@ def accumulate(x, f=operator.add, method=None):
         d = 1 << j
         I = np.arange(2*d - 1, n, 2*d)
         x = mpc.np_update(x, I, f(x[I-d], x[I]))
-    t = (n//3).bit_length()
     for j in reversed(range((n//3).bit_length())):
         d = 1 << j
         I = np.arange(3*d - 1, n, 2*d)

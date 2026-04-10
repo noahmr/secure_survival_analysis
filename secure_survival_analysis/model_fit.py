@@ -93,22 +93,21 @@ async def fit_proportional_hazards_model(table, method='l-bfgs', alpha=1, num_it
 
     # Define log-likelihood function
     def f(b):
-        return ph_log_likelihood.negative_log_likelihood(b, X_sorted, delta_sorted, grouping, ld)
+        return ph_log_likelihood.log_likelihood(b, X_sorted, delta_sorted, grouping, ld)
 
     # Define gradient of log-likelihood function
     def f_grad(b):
-        return ph_log_likelihood.negative_log_likelihood_gradient(b, X_sorted, delta_sorted, grouping, ld)
+        return ph_log_likelihood.log_likelihood_gradient(b, X_sorted, delta_sorted, grouping, ld)
 
     def stepsize(i, f, beta, grad, dir):
         return alpha    # proportional hazards uses constant step size of alpha
 
     num_features = len(X_sorted[0])
-#    beta0 = ttype(np.array([np.float64(0)] * num_features))
     beta0 = np.array([np.float64(0)] * num_features)
     start = time.time()
 
     if hessian_start:
-        grad0, hess0 = await ph_log_likelihood.negative_log_likelihood_gradient_hessian(beta0, X_sorted, delta_sorted, grouping, ld)
+        grad0, hess0 = await ph_log_likelihood.log_likelihood_gradient_hessian(beta0, X_sorted, delta_sorted, grouping, ld)
     else:
         grad0, hess0 = None, None
 

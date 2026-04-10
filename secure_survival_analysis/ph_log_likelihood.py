@@ -34,8 +34,8 @@ from mpyc.runtime import mpc, Future
 from secure_survival_analysis.aggregation import group_sum
 
 
-async def negative_log_likelihood(beta, X, delta, grouping, ld):
-    """Compute the negative log-likelihood function for the Proportional Hazards Model
+async def log_likelihood(beta, X, delta, grouping, ld):
+    """Compute the log-likelihood function for the Proportional Hazards Model
 
     It is assumed that the samples are already sorted on survival times.
 
@@ -59,7 +59,7 @@ async def negative_log_likelihood(beta, X, delta, grouping, ld):
     await mpc.barrier("after group_sum, before log")
 
     s = np_log(s)
-    return delta @ (s - w)
+    return delta @ (w - s)
 
 
 def batch(ufunc, batch_size=2048):
@@ -122,8 +122,8 @@ def rec(a):
     return mpc._rec(a)
 
 
-async def negative_log_likelihood_gradient(beta, X, delta, grouping, ld):
-    """Compute gradient of the negative log-likelihood function for the Proportional Hazards Model
+async def log_likelihood_gradient(beta, X, delta, grouping, ld):
+    """Compute gradient of the log-likelihood function for the Proportional Hazards Model
 
     It is assumed that the samples are already sorted on survival times.
 
@@ -161,10 +161,10 @@ async def negative_log_likelihood_gradient(beta, X, delta, grouping, ld):
     await mpc.barrier("after group_sum, before reciprocal")
     s = s[:, 1:] * rec(s[:, :1])  # perform the divisions
 #    s = s[:, 1:] / s[:, :1]  # perform the divisions
-    return delta @ (s - X)
+    return delta @ (X - s)
 
 
-async def negative_log_likelihood_gradient_hessian(beta, X, delta, grouping, ld):
+async def log_likelihood_gradient_hessian(beta, X, delta, grouping, ld):
     """Compute gradient and diagonal entries of the Hessian matrix at the point beta"""
 
     # shapes: X (n,d) beta (d,) delta, grouping, ld (n,)
@@ -193,7 +193,7 @@ async def negative_log_likelihood_gradient_hessian(beta, X, delta, grouping, ld)
     s = s[:, 1:] * rec(s[:, :1])  # perform the divisions
 
     k = len(X[0])
-    grad = delta @ (s[:, :k] - X)
+    grad = delta @ (X - s[:, :k])
     hess = delta @ (s[:, k:] - s[:, :k] * s[:, :k]) # diagonal terms of Hessian matrix
 
     return grad, hess
