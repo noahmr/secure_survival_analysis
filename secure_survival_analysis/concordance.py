@@ -255,7 +255,7 @@ async def harrell_count_concordant_and_tied(times, times_grouping, hazards, stat
     unit_vectors = mpc.np_vstack(unit_vectors_)  # convert to Numpy array
 
     # Next, sum them up in reverse order
-    masks = mpc.np_flip(mpc.np_cumsum(mpc.np_flip(unit_vectors, axis=0), axis=0), axis=0)
+    masks = np.flip(np.cumsum(np.flip(unit_vectors, axis=0), axis=0), axis=0)
 
     await mpc.barrier("generating unit vectors and masks")
     logging.info("finished generating unit vectors and masks")
@@ -293,19 +293,13 @@ async def harrell_count_concordant_and_tied(times, times_grouping, hazards, stat
     #
 
     # For each subject, mark all subjects with a lower risk score
-    U = (1 - mpc.np_cumsum(unit_vectors, axis=1))
+    U = 1 - np.cumsum(unit_vectors, axis=1)
 
-    concordant_results = []
-    for i in range(0, n):    # note: can be done in parallel
-        # Inner product to obtain concordant pairs
-        concordant_results.append(mpc.np_matmul(masks[i], U[i]))
-    # TODO: can this be done using numpy, instead of for-loop?
+    # TODO: use np.vecdot for Numpy 2.0+ 
+    concordant_results = (masks.reshape((n, 1, n)) @ U.reshape((n, n, 1))).reshape(-1)
 
-    concordant_results = mpc.np_fromlist(concordant_results)
-
-    # note: each entry only has a contribution if not censored; thus,
-    # multiply in the status bits
-    num_concordant = mpc.np_matmul(concordant_results, status)
+    # note: each entry only has a contribution if not censored; thus, multiply in the status bits
+    num_concordant = concordant_results @ status
 
     await mpc.barrier("counting concordant pairs")
     logging.info("finished counting concordant pairs")
@@ -410,7 +404,7 @@ async def harrell_count_pairs(times, hazards, status):
     await mpc.barrier("counting concordant and tied pairs")
     logging.info("finished counting concordant and tied pairs")
 
-    return (concordant_pairs, tied_pairs, comparable_pairs)
+    return concordant_pairs, tied_pairs, comparable_pairs
 
 
 def harrell_concordance_index(concordant, tied, comparable):
