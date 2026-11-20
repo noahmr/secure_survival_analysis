@@ -76,17 +76,17 @@ def harrell_count_comparable_pairs(grouping, status):
     # [1, 0, 0, 1, 0, 1, 1, 0]  (grouping)
     #
     # Using a selective sum on an array of ones, and then propagate to get the group sizes
-    # [1, 2, 3, 1, 2, 1, 2, 3]  (intermediate result)
-    # [3, 3, 3, 2, 2, 3, 3, 3]  (group sizes)
+    # [1, 2, 3, 1, 2, 1, 1, 2]  (intermediate result)
+    # [3, 3, 3, 2, 2, 1, 2, 2]  (group sizes)
     #
     # By shifting the group indexing once to the left, and then multiplying it in:
-    # [0, 0, 3, 0, 2, 0, 0, 3]
+    # [0, 0, 3, 0, 2, 1, 0, 2]
     #
     # Next, a summation from the right:
-    # [8, 8, 8, 5, 5, 3, 3, 3]
+    # [8, 8, 8, 5, 5, 3, 2, 2]
     #
     # Then, subtract the group sizes from this, which gives:
-    # [5, 5, 5, 3, 3, 0, 0, 0]
+    # [5, 5, 5, 3, 3, 2, 0, 0]
     #
     # For each element, this now stores the number of elements that come afterwards (in different groups). For
     # everything which is not censored, everything afterwards is comparable.
@@ -113,33 +113,15 @@ def harrell_count_comparable_pairs(grouping, status):
     # pairs is 10-6 = 4.
     #
 
-    n = len(grouping)
-    array_type = type(grouping)
+    ones = type(grouping)(np.ones(len(grouping), dtype=int))
+    group_mask = np.roll(grouping, -1)
+    # Number of noncensored subjects and group size, as last value of each group:
+    noncensored, group_sz = selective_sum(np.column_stack((status, ones)), grouping).T * group_mask
 
-    # Compute group sizes 'd', with 'u_' as intermediate result
-    d = group_sum(array_type(np.ones(n, dtype=int)), grouping)
+    # For each element, total number of elements outside of own group that still come afterwards:
+    remainders = np.flip(np.cumsum(np.flip(group_sz)))
 
-    # Apply grouping as a mask (shifted to the left by 1 position), in order to set all of
-    # the elements (except the last element) within each group to zero
-    group_mask = mpc.np_concatenate((grouping[1:], array_type(np.array([1]))))
-    u = d * group_mask
-
-    # For each element, compute the total number of elements outside of its own group that
-    # still come afterwards.
-    remainders_ = mpc.np_flip(mpc.np_cumsum(mpc.np_flip(u)))
-    remainders = remainders_ - d
-
-    # For elements that are not censored, everything afterwards is comparable
-    comparable_outside_groups = mpc.np_matmul(remainders, status)
-
-    # For each group, get the number of non-censored subjects in the group; Placed at the
-    # last value of that group
-    noncensored = selective_sum(status, grouping) * group_mask
-    censored = d - noncensored
-
-    comparable_within_groups = mpc.np_matmul(censored, noncensored)
-
-    return comparable_outside_groups + comparable_within_groups
+    return noncensored @ (remainders - noncensored)
 
 
 def np_xor(a, b):
@@ -295,7 +277,7 @@ async def harrell_count_concordant_and_tied(times, times_grouping, hazards, stat
     # For each subject, mark all subjects with a lower risk score
     U = 1 - np.cumsum(unit_vectors, axis=1)
 
-    # TODO: use np.vecdot for Numpy 2.0+ 
+    # TODO: use np.vecdot for Numpy 2.0+
     concordant_results = (masks.reshape((n, 1, n)) @ U.reshape((n, n, 1))).reshape(-1)
 
     # note: each entry only has a contribution if not censored; thus, multiply in the status bits
