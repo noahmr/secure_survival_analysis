@@ -242,12 +242,11 @@ def group_propagate_right(values, grouping):
 def _group_sum(values, grouping):
     assert len(values) == len(grouping)
 
-    # Selective-sum within each group; The sum per group is then stored at the end of each group
-    u = selective_sum(values, grouping)
-
-    # Propagate the "last value" to the rest of the group
-    r = group_propagate(u, grouping)
-
+    u = selective_sum(values, grouping)  # partial group sums
+    grouping = np.roll(grouping, -1)  # prepare for reverse traversal
+    v = np.flip(selective_sum(np.flip(values), np.flip(grouping)))  # reverse partial group sums
+    # NB: u and v are independent from each other 
+    r = u + v - values  # add partial group sums and correct for values included twice
     return r, u
 
 
@@ -340,24 +339,13 @@ def group_count(grouping):
     ------
     array of same length as inputs, containing the group sizes within each group
     """
-
     assert grouping.ndim == 1
 
     n = len(grouping)
     array_type = type(grouping)
 
-    # Assign indices, and append n+1 at the end
-    w = grouping * np.arange(1, n+1)
-    w = np.concatenate((w, array_type(np.array([n+1]))))
-
-    # Propagate indices to group boundaries
-    g_prime = np.concatenate((grouping, array_type(np.array([1]))))
-    u = np.flip(selective_sum(np.flip(w), np.flip(g_prime)))
-
-    # Compute group sizes through successive differences
-    t = u[1:] - u[:-1]
-
-    # Selective sum to propagate first value in each group to the rest of the group
-    r = selective_sum(t, grouping)
+    values = array_type(np.ones(len(grouping), dtype=int))
+    # TODO: possibly exploit that values are known all to be equal to 1
+    r = group_sum(values, grouping)
     return r
 
